@@ -3,6 +3,11 @@
 > 目标：在 Stage 3 的检索链之上，新增一个真正的 Single Agent，它能接收用户消息、判断是否
 > 需要检索、调用 `RagSearchTool`（原生 Tool Calling），并基于结构化 evidence 产出最终答案。
 
+> **语义注记（Agentic RAG alignment）**：Stage 4 引入的是 **Agentic RAG orchestration** ——
+> 决定是否检索（Retrieval Invocation）并围绕 `RagSearchTool` 做 grounded synthesis。
+> 它**不是** generic multi-tool agent 的基础；本项目以单一知识能力 `RagSearchTool` 为目标。
+> 历史标题「Single Agent」与 `Tool Calling` 仅指 native function-calling 的实现细节。
+
 ## 1. Agent 架构
 
 ```text
@@ -72,7 +77,7 @@ system -> user -> model
 
 原生 tool calling；不用自定义 ACTION 文本协议；几十行状态机（不引入 LangGraph 等）。
 
-## 6. Tool Selection（真实观察）
+## 6. Retrieval Invocation（真实观察）
 
 | 问题 | 决策 | 说明 |
 |---|---|---|

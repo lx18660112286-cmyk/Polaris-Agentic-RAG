@@ -1,43 +1,43 @@
 # Dev Knowledge Agent — Architecture
 
-> Agentic RAG Application，面向开发者知识场景。
-> 核心产品抽象是 `RagSearchTool`（Agent-facing knowledge retrieval capability），
-> LightRAG 只是其背后的 RAG Kernel。
+> **Agentic RAG Application**，面向开发者知识场景，构建在 **LightRAG** 检索内核之上。
+> 核心产品抽象是 `RagSearchTool`（Agentic RAG knowledge retrieval capability boundary）。
+> 系统动态决定是否检索、规划检索、把 Kernel 输出归一化为应用自有 Evidence Contract，再做
+> grounded synthesis 或 abstention。
 
-## 产品视角（Agent 看到的世界）
+## 产品视角（用户看到的世界）
 
 ```text
-User
+User Query
  ↓
-AgentOrchestrator
- ↓
-Tool Registry
+Agentic RAG Orchestrator
  ↓
 RagSearchTool
  ↓
 Knowledge Retrieval
 ```
 
-Agent（Stage 4 已实现）通过原生 Tool Calling 自主决定"直接回答 还是 检索"。Agent 只需提供 `query`，
-例如：
+Agentic RAG Orchestrator（Stage 4 已实现）通过原生 function calling 动态判定「是否需要检索」
+（Retrieval Invocation）并执行 grounded synthesis。用户只需提供 `query`：
 
 ```python
 await agent.run("Order Service 部署失败后应该如何回滚？")
 ```
 
+> `ToolRegistry` 仅是 native function calling runtime 的**内部执行机制**（注册、校验、调用
+> `RagSearchTool`），不是产品概念；本项目不以多 Tool orchestration 为目标。
+
 ## 工程视角（内部实现层次）
 
 ```text
-User
+User Query
         ↓
- AgentOrchestrator
-        ↓
-   Tool Registry
-        ↓
+ Agentic RAG Orchestrator
+        ↓            （Retrieval Invocation: 要不要检索）
    RagSearchTool
         ↓
    QueryRouter
-        ↓
+        ↓            （Retrieval Planning: 怎么检索）
    RetrievalPlan
         ↓
 KnowledgeSearchPort
@@ -46,6 +46,8 @@ KnowledgeSearchPort
         ↓
  LightRAG Kernel
 ```
+
+`ToolRegistry` 在 runtime 内部负责 native function calling 的注册与调用分发，不进入上图主链语义。
 
 ## 返回方向（数据流回程）
 
@@ -143,27 +145,31 @@ KnowledgeSearchResult
 - **Stage 3 移除** `RetrievalDiagnostics.query_mode`：真实 LightRAG `mode` 只在 Adapter 内部，
   应用层用 `RetrievalPlan.strategy` / `RetrievalIntent`。
 
-## Agent（Stage 4 已实现）
+## Agentic RAG Orchestration（Stage 4 已实现）
 
-Single Agent 编排层（`agent/`）：
+Agentic RAG 编排层（`agent/`），负责 **Retrieval Invocation** 与 **Grounded Synthesis**：
 
 ```text
-User
+User Query
  ↓
-AgentOrchestrator  (native tool calling loop, tool_choice="auto")
+AgentOrchestrator  (native function calling, tool_choice="auto")
  ↓
-ToolRegistry
- ↓
-AgentRagSearchTool  (薄 wrapper, 复用 Stage 2/3 RagSearchTool)
+AgentRagSearchTool  (薄 wrapper, 复用 Stage 2/3 RagSearchTool；内部经 ToolRegistry 调用)
 ```
 
-- **Layer 1（Agent）**：`AgentModelPort`（framework-agnostic）让 LLM 决定"直接回答 还是 调
-  `search_dev_knowledge`"——用 provider 原生 Tool Calling，不自制 ACTION 文本协议。
-- `DeepSeekAgentModelAdapter`（`adapters/agent_model/`）是唯一 import `openai` 的地方；Agent 核心
+- **Retrieval Invocation**：`AgentModelPort`（framework-agnostic）让 LLM 决定"直接回答 还是 调
+  `search_dev_knowledge`"——用 provider 原生 function calling，不自制 ACTION 文本协议。
+  这是 **Agentic RAG orchestration decision**，不是 multi-tool selection。
+- `DeepSeekAgentModelAdapter`（`adapters/agent_model/`）是唯一 import `openai` 的地方；编排核心
   不依赖 provider SDK。
-- **Layer 2（RAG）**：仍由 Stage 3 `QueryRouter` 决定"怎么检索"。Agent 永不接触 `mode/top_k/rerank`。
-- `AgentResult / ToolCallRecord / AgentStatus`：供调用方消费与未来 Stage 5 observability。
+- **Retrieval Planning**：仍由 Stage 3 `QueryRouter` 决定"怎么检索"。Orchestrator 永不接触
+  `mode/top_k/rerank`。
+- **Grounded Synthesis / Abstention**：只在有证据时综合答案并引用，证据不足时诚实弃答。
+- `AgentResult / ToolCallRecord / AgentStatus`：供调用方消费与 observability。
 - 终止防护：`max_steps` / `max_tool_calls` / 重复调用拒绝；错误归一化不外泄 SDK 异常。
+
+> `ToolRegistry`（`tools/registry.py`）是 native function calling runtime 的内部执行机制，
+> 用于注册、校验和调用 `RagSearchTool`；本项目以单个知识能力为目标，不以多 Tool orchestration 为目标。
 
 ## workspace 隔离（Stage 2 新增）
 
@@ -248,16 +254,15 @@ Dataset Query
 
 ## 本项目负责 vs LightRAG 负责
 
-本项目负责（Agentic 层）：
+本项目负责（Agentic RAG 应用层）：
+- Retrieval Invocation（是否检索）
+- Retrieval Planning（怎么检索）— Query Router / RetrievalPlan
 - Agent-facing `RagSearchTool`
-- Tool Registry
 - `KnowledgeSearchPort`
 - `LightRAGAdapter`
 - Evidence Contract
-- Retrieval Strategy / Query Router
-- Agent Orchestrator
+- Grounded synthesis / abstention
 - Evaluation / Observability
-- External Tools（Git / Log / Database / Web，Stage 6）
 
 LightRAG 负责（Kernel 能力）：
 - 文档插入与处理

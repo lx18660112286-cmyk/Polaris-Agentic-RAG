@@ -170,8 +170,9 @@ Stage 3 只做 sanity：记录 `query / intent / strategy / evidence count / cit
 ## 16. Stage 4 Implications
 
 Stage 3 为 Stage 4 铺路：`RagSearchTool` 已成为"带内部路由决策的检索工具"，`routing` 可被
-Agent / Tool Registry / Tracing 消费。Stage 4 将引入 Agent、Tool Registry、Tool Selection、
-Tool Calling Loop，但**不再改** Tool 的 `query` 输入形态与 Retrieval/Routing 语义。
+Agent / Tool Registry / Tracing 消费。Stage 4 将引入 Agentic RAG Orchestrator（Retrieval
+Invocation / native function calling / Grounded Synthesis）与 `RagSearchTool` 调用，但**不再改**
+Tool 的 `query` 输入形态与 Retrieval/Routing 语义。
 
 ---
 更新时机：本报告随 pinned commit 与真实运行结果更新；若 kernel 升级改变 `aquery_data` 结构或

@@ -11,7 +11,7 @@
 
 1. routing aggregation measurement artifact（末次记录覆盖首次决策）
 2. Agent query rewrite 导致的 retrieval intent drift
-3. Tool Selection false-negative 核查
+3. Retrieval Invocation false-negative 核查
 4. 多层 Evaluation 归因不清晰（Router 自身 vs Agent→Tool 链路）
 
 ## 1. 变更内容
@@ -37,7 +37,7 @@
 
 | 层 | 度量 | 口径 |
 |---|---|---|
-| Layer A — Tool Selection | accuracy / precision / recall / FP / FN | Agent 是否调用工具 |
+| Layer A — Retrieval Invocation | accuracy / precision / recall / FP / FN | Agent 是否调用工具（`Retrieval Invocation`，通过原生 `RagSearchTool` 调用行为度量） |
 | Layer B — Router Component | intent / strategy / fallback rate | 原始 dataset query 直连 `QueryRouter`，**不经 Agent / Tool / 改写** |
 | Layer C — Agentic Retrieval | primary intent / strategy / drift count | Agent 生成的 `tool_query` 经 Router 后的**首次**决策 |
 
@@ -58,9 +58,9 @@
 
 | Metric | Stage 5（before） | Stage 5.1（after） | 口径说明 |
 |---|---:|---:|---|
-| Tool Selection accuracy | 94.6% | **97.3%** | 同口径（FP=0，FN 2→1） |
-| Tool Selection precision | 100.0% | **100.0%** | 同口径 |
-| Tool Selection recall | 93.3% | **96.7%** | 同口径 |
+| Retrieval Invocation accuracy | 94.6% | **97.3%** | 同口径（FP=0，FN 2→1） |
+| Retrieval Invocation precision | 100.0% | **100.0%** | 同口径 |
+| Retrieval Invocation recall | 93.3% | **96.7%** | 同口径 |
 | Router Component intent | N/A | **90.0%**（27/30） | 新指标（spec §3） |
 | Router Component strategy | N/A | **93.3%**（28/30） | 新指标 |
 | Router Component fallback | N/A | **0.0%** | 新指标 |
@@ -85,7 +85,7 @@
 
 ## 3. 分层结果与归因
 
-### 3.1 Layer A — Tool Selection（97.3%）
+### 3.1 Layer A — Retrieval Invocation（97.3%）
 
 FP=0，FN=1：
 
@@ -208,7 +208,7 @@ architecture guard            -> 通过（evaluation/observability 不 import Li
 | tool_query 捕获 | ✅ AgentOrchestrator 记录 |
 | routing/tool calls 关联 | ✅ tool_call_id（事件 + RoutingStep） |
 | query rewrite drift 可观测 | ✅ 3 例 + preservation 96.7% |
-| Tool Selection mismatches 识别 | ✅ FN=1（f3），无 FP |
+| Retrieval Invocation mismatches 识别 | ✅ FN=1（f3），无 FP |
 | 无 dataset 用例删除 | ✅ 37 例不变（仅加 critical_terms metadata） |
 | 无 per-query hardcode | ✅ 只改 prompt 通用改写策略 |
 | Citation groundedness 无回归 | ✅ 100% |
@@ -225,16 +225,9 @@ architecture guard            -> 通过（evaluation/observability 不 import Li
 - LightRAG submodule：`02dcd8df754ec312b807bdd4d67737b97bc38679`（不变）。
 - 工作区：提交后 clean。
 
-## 10. Next Stage（本阶段完成后停止，不进入 Stage 6）
+## 10. Next Stage（本阶段完成后停止）
 
-# Stage 6 — Multi-Tool Developer Agent
-
-建议拆成：
-
-```text
-Stage 6A — GitTool
-Stage 6B — LogTool
-Stage 6C — DatabaseTool
-Stage 6D — WebTool
-Stage 6E — Multi-Tool Orchestration Evaluation
-```
+项目至此 **FEATURE COMPLETE / FEATURE FREEZE**。原「Stage 6 — Multi-Tool Developer Agent
+（GitTool / LogTool / DatabaseTool / WebTool）」**已从正式路线移除，不进入实施计划**；它不属于
+当前 Agentic RAG scope（见 `docs/ROADMAP.md` 的 Optional Future Work）。本项目以单一知识能力
+`RagSearchTool` 为目标，不以多 Tool orchestration 为目标。
