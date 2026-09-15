@@ -30,6 +30,7 @@ from dev_knowledge_agent.adapters.lightrag.settings import (
 from dev_knowledge_agent.agent.orchestrator import AgentOrchestrator
 from dev_knowledge_agent.agent.prompts import build_system_prompt
 from dev_knowledge_agent.config.settings import Settings, get_settings
+from dev_knowledge_agent.observability.tracer import Tracer
 from dev_knowledge_agent.retrieval.router import QueryRouter
 from dev_knowledge_agent.tools.rag_search import AgentRagSearchTool, RagSearchTool
 from dev_knowledge_agent.tools.registry import ToolRegistry
@@ -51,6 +52,7 @@ class BuiltAgent:
     registry: ToolRegistry
     orchestrator: AgentOrchestrator
     adapter: LightRAGAdapter
+    tracer: Tracer | None = None
 
 
 def create_lightrag_adapter(
@@ -66,9 +68,13 @@ def create_lightrag_adapter(
     )
 
 
-def build_rag_search_tool(*, adapter: LightRAGAdapter) -> RagSearchTool:
+def build_rag_search_tool(
+    *,
+    adapter: LightRAGAdapter,
+    tracer: Tracer | None = None,
+) -> RagSearchTool:
     """Bind the concrete adapter to a RagSearchTool via the Port + Router."""
-    return RagSearchTool(search_port=adapter, router=QueryRouter())
+    return RagSearchTool(search_port=adapter, router=QueryRouter(), tracer=tracer)
 
 
 def build_agent_orchestrator(
@@ -78,6 +84,7 @@ def build_agent_orchestrator(
     system_prompt: str,
     max_steps: int,
     max_tool_calls: int,
+    tracer: Tracer | None = None,
 ) -> AgentOrchestrator:
     """Assemble the orchestrator from its collaborators."""
     return AgentOrchestrator(
@@ -86,6 +93,7 @@ def build_agent_orchestrator(
         system_prompt=system_prompt,
         max_steps=max_steps,
         max_tool_calls=max_tool_calls,
+        tracer=tracer,
     )
 
 
@@ -94,12 +102,16 @@ def build_agent(
     *,
     lightrag_adapter: LightRAGAdapter | None = None,
     working_dir: str | Path | None = None,
+    tracer: Tracer | None = None,
 ) -> BuiltAgent:
     """Compose RagSearchTool + ToolRegistry + AgentOrchestrator (Stage 4).
 
     Returns a ``BuiltAgent`` so a caller (CLI / integration test) can run the
     orchestrator and manage the LightRAG adapter lifecycle
     (``built.adapter.initialize()`` / ``close()``) itself.
+
+    ``tracer`` is shared by the orchestrator and the RagSearchTool so one
+    trace_id correlates Agent -> Tool -> Router -> Adapter (Stage 5).
     """
     settings = settings or get_settings()
 
@@ -108,7 +120,7 @@ def build_agent(
         knowledge_roots=None,
     )
 
-    rag_tool = build_rag_search_tool(adapter=adapter)
+    rag_tool = build_rag_search_tool(adapter=adapter, tracer=tracer)
     #: RagSearchTool is surfaced to the registry through an AgentTool-compatible
     #: thin wrapper (spec §15) so the Tool's own contract stays untouched.
     agent_tool = AgentRagSearchTool(rag_tool)
@@ -131,6 +143,7 @@ def build_agent(
         system_prompt=system_prompt,
         max_steps=settings.agent_max_steps,
         max_tool_calls=settings.agent_max_tool_calls,
+        tracer=tracer,
     )
 
     return BuiltAgent(
@@ -138,4 +151,5 @@ def build_agent(
         registry=registry,
         orchestrator=orchestrator,
         adapter=adapter,
+        tracer=tracer,
     )

@@ -26,6 +26,7 @@ from dev_knowledge_agent.agent.models import (
     AgentRole,
     AgentStatus,
     AgentToolCall,
+    TokenUsage,
     ToolCallRecord,
 )
 from dev_knowledge_agent.agent.prompts import build_system_prompt
@@ -42,6 +43,7 @@ __all__ = [
     "AgentRole",
     "AgentStatus",
     "AgentToolCall",
+    "TokenUsage",
     "ToolCallRecord",
     "ToolExecutionResult",
     "build_system_prompt",

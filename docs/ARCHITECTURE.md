@@ -194,10 +194,30 @@ rag_search(query="...")
 ## 旁路能力
 
 ```text
-Evaluation     — 检索/回答/引用评估（Stage 5）
-Observability  — 日志、指标（Stage 5）
-Tracing        — Tool 调用链路、router 决策（Stage 5）
+Evaluation     — 检索/回答/引用评估（Stage 5，已实现）
+Observability  — 结构化 trace / 失败分类 / 延迟与 token（Stage 5，已实现）
+Tracing        — Agent -> Tool -> Router -> Adapter 整链 trace_id 关联（Stage 5，已实现）
 ```
+
+### Observability / Evaluation（Stage 5 已实现）
+
+```text
+AgentOrchestrator ──[Tracer: ContextVar trace_id]──▶ TraceSink ──▶ InMemory / Jsonl (.local/traces/)
+RagSearchTool ────  ROUTER_DECISION / RETRIEVAL events
+   │
+   ▼
+EvalCase.jsonl ──▶ EvaluationRunner(run_case=真实组合 Agent) ──▶ EvalCaseResult ──▶ MetricSummary
+   └───────── EvalCaseResult.events(确定性指标: 工具选择混淆矩阵 / source recall / citation grounded / 弃答)
+```
+
+- `observability/`：应用自有 `TraceEventType` / `FailureCategory` 契约；Tracer 用 ContextVar 低侵入传播
+  `trace_id`；事件在到达 sink 前自动脱敏（secret / chain-of-thought）。`evaluation/` 与
+  `observability/` 均不 import LightRAG / provider SDK（架构 guard 强制）。
+- `NO_EVIDENCE`（诚实弃答）与系统失败（MODEL_ERROR / TOOL_ERROR / MAX_STEPS…）在 `FailureCategory`
+  中明确分离，评估汇总不会把正常业务结果当错误。
+- 评估指标全部确定性（混淆矩阵 / 集合 recall / 术语包含），无 LLM 裁判；运行结果落盘
+  `.local/eval/eval-*.json` 可复现。详见 `docs/STAGE5_EVALUATION_OBSERVABILITY.md`、`docs/STAGE5_EVALUATION_REPORT.md`
+  与 `ADR 0005`。
 
 ## 本项目负责 vs LightRAG 负责
 

@@ -22,6 +22,7 @@ from dev_knowledge_agent.agent.models import (
     AgentMessage,
     AgentModelResponse,
     AgentToolCall,
+    TokenUsage,
 )
 from dev_knowledge_agent.tools.protocol import ToolDefinition
 
@@ -137,8 +138,19 @@ class DeepSeekAgentModelAdapter:
                 )
             )
 
+        #: Real provider usage (spec §29/§30); never estimated, None when absent.
+        usage = getattr(resp, "usage", None)
+        usage_model = None
+        if usage is not None:
+            usage_model = TokenUsage(
+                input_tokens=getattr(usage, "prompt_tokens", None),
+                output_tokens=getattr(usage, "completion_tokens", None),
+                total_tokens=getattr(usage, "total_tokens", None),
+            )
+
         return AgentModelResponse(
             content=content,
             tool_calls=parsed_calls,
             finish_reason=choice.finish_reason,
+            usage=usage_model,
         )

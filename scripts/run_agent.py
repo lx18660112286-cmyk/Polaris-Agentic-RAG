@@ -6,12 +6,17 @@ provider credentials in the environment (``DEEPSEEK_API_KEY``).
 Usage (from project root, inside .venv):
 
     .\\.venv\\Scripts\\python.exe scripts/run_agent.py
+    .\\.venv\\Scripts\\python.exe scripts/run_agent.py --debug
+
+``--debug`` traces every Agent event and prints the per-query event log
+(also archived as JSONL under ``.local/traces/``).
 
 Type a query; type `exit` / `quit` to stop.
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import sys
@@ -20,9 +25,12 @@ from pathlib import Path
 from dev_knowledge_agent.adapters.lightrag.native_baseline import ingest_documents
 from dev_knowledge_agent.bootstrap import build_agent
 from dev_knowledge_agent.config.settings import get_settings
+from dev_knowledge_agent.observability.sinks import InMemoryTraceSink, JsonlTraceSink
+from dev_knowledge_agent.observability.tracer import Tracer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WORKDIR = PROJECT_ROOT / ".local" / "agent_live"
+TRACE_DIR = PROJECT_ROOT / ".local" / "traces"
 KB_FILES = [
     PROJECT_ROOT / "examples" / "knowledge_base" / name
     for name in ("deployment.md", "api_auth.md", "incident_runbook.md", "service_overview.md")
@@ -30,13 +38,23 @@ KB_FILES = [
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description="Run the live Agent REPL.")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="trace Agent events and print them after each query.",
+    )
+    args = parser.parse_args()
+
     if not os.environ.get("DEEPSEEK_API_KEY"):
         print("DEEPSEEK_API_KEY not set; cannot run the live Agent.", file=sys.stderr)
         return
 
     #: verify the example KB is ingested once for this CLI session.
     WORKDIR.mkdir(parents=True, exist_ok=True)
-    built = build_agent(get_settings(), working_dir=WORKDIR)
+    sink = InMemoryTraceSink()
+    tracer = Tracer(sinks=[JsonlTraceSink(TRACE_DIR), sink]) if args.debug else None
+    built = build_agent(get_settings(), working_dir=WORKDIR, tracer=tracer)
     adapter = built.adapter
     try:
         await adapter.initialize()
@@ -53,6 +71,7 @@ async def main() -> None:
                 break
             if not query:
                 continue
+            sink.clear()
             result = await built.orchestrator.run(query)
             print(f"Agent> {result.answer}\n")
             if result.citations:
@@ -64,6 +83,14 @@ async def main() -> None:
                 )
             if result.error:
                 print(f"       note: {result.error}")
+            if args.debug and sink.events:
+                print("       trace:")
+                for event in sink.events:
+                    attrs = ", ".join(f"{k}={v}" for k, v in event.attributes.items())
+                    print(
+                        f"         [{event.seq:>2}] {event.event_type.value}"
+                        + (f"  ({attrs})" if attrs else "")
+                    )
     finally:
         await adapter.close()
 

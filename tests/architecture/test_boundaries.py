@@ -304,3 +304,29 @@ def test_tool_registry_does_not_import_infrastructure() -> None:
     tree = ast.parse(registry_file.read_text(encoding="utf-8"))
     for lineno, imported in _iter_import_tuples(tree):
         assert "agent_model" not in imported, f"registry.py imports agent_model at {lineno}"
+
+
+# --------------------------------------------------------------------------- #
+# Stage 5 additions: evaluation/ + observability/ provider & kernel boundaries
+# --------------------------------------------------------------------------- #
+
+#: evaluation/ and observability/ are application-owned contracts: they may
+#: never depend on infrastructure (LightRAG / adapters) nor a provider SDK
+#: (openai). The provider boundary lives in the adapters (spec §58/§59).
+EVAL_OBS_FORBIDDEN = (
+    "dev_knowledge_agent.adapters",
+    FORBIDDEN_MODULE_ROOT,
+    "openai",
+)
+
+
+def test_evaluation_does_not_import_infrastructure_or_provider() -> None:
+    """evaluation/ never imports adapters / LightRAG / the provider SDK (openai)."""
+    layer = SRC_ROOT / "evaluation"
+    _assert_layer_does_not_import(layer, EVAL_OBS_FORBIDDEN)
+
+
+def test_observability_does_not_import_infrastructure_or_provider() -> None:
+    """observability/ never imports adapters / LightRAG / the provider SDK (openai)."""
+    layer = SRC_ROOT / "observability"
+    _assert_layer_does_not_import(layer, EVAL_OBS_FORBIDDEN)

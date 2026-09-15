@@ -13,6 +13,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from dev_knowledge_agent.retrieval.models import RoutingDecision
+
 __all__ = [
     "AgentRole",
     "AgentToolCall",
@@ -20,6 +22,7 @@ __all__ = [
     "AgentModelResponse",
     "AgentStatus",
     "AgentResult",
+    "TokenUsage",
     "ToolCallRecord",
     "format_tool_result_for_model",
 ]
@@ -54,12 +57,26 @@ class AgentMessage(BaseModel):
     tool_call_id: str | None = None
 
 
+class TokenUsage(BaseModel):
+    """Provider-neutral token counts (spec §30).
+
+    ``None`` means the provider did not return this number; do not estimate
+    it and pretend it is real usage.
+    """
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+
+
 class AgentModelResponse(BaseModel):
     """The provider-neutral result of one model completion."""
 
     content: str | None = None
     tool_calls: list[AgentToolCall] = Field(default_factory=list)
     finish_reason: str | None = None
+    #: Real provider usage when the provider supplies it (spec §29/§30).
+    usage: TokenUsage | None = None
 
 
 class AgentStatus(str, Enum):
@@ -72,13 +89,20 @@ class AgentStatus(str, Enum):
 
 
 class ToolCallRecord(BaseModel):
-    """Observable record of one tool call (for Stage 5 observability)."""
+    """Observable record of one tool call (for Stage 5 observability).
+
+    ``sources`` are the source names the tool cited in its result;
+    ``routing`` is the RetrievalPlan's RoutingDecision when the tool
+    surfaces one (RagSearchTool does). Both are evaluation inputs.
+    """
 
     name: str
     arguments: dict[str, Any]
     result_status: str = ""
     error: str | None = None
     duration_ms: float | None = None
+    sources: list[str] = Field(default_factory=list)
+    routing: RoutingDecision | None = None
 
 
 class AgentResult(BaseModel):
@@ -90,6 +114,8 @@ class AgentResult(BaseModel):
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     steps: int = 0
     error: str | None = None
+    #: Correlation id shared by Agent -> Tool -> Router -> Adapter (spec §24).
+    trace_id: str | None = None
 
 
 def _extract_citations(value: Any) -> list[str]:

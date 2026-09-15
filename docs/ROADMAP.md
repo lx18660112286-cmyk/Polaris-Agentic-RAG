@@ -177,15 +177,41 @@ KnowledgeSearchPort
 
 ## Stage 5 — Evaluation + Observability
 
+**状态**: ✅ 已交付（2026-09-15），详见 `docs/STAGE5_EVALUATION_OBSERVABILITY.md`、`docs/STAGE5_EVALUATION_REPORT.md`
+与 `docs/adr/0005-evaluation-and-observability.md`。
+
 **Goal**: 可度量、可观测。
 
 **Deliverables**:
-- retrieval evaluation（mode 对比、top_k 对比）
-- answer evaluation
-- citation evaluation
-- tool-call tracing
-- latency / token usage / failure category
-- router decision trace
+- `observability/`：`Trace / TraceEvent / TraceEventType / FailureCategory`（`models.py`）、
+  `Tracer`（ContextVar 传播 trace_id + 自动脱敏，`tracer.py`）、`TraceSink / InMemoryTraceSink /
+  JsonlTraceSink`（`sinks.py`）、只读分析 `analysis.py`
+- `evaluation/`：`EvalCase / EvalCaseResult / EvalRunResult / MetricSummary`（`models.py`）、
+  确定性指标 `metrics.py`（混淆矩阵 / source recall / citation grounded / 弃答 / 延迟 / token）、
+  `evaluator.py`（AgentResult + trace → 每维判定）、`EvaluationRunner`（`runner.py`）
+- 埋点：`AgentOrchestrator`（AGENT/MODEL/TOOL/ERROR）、`RagSearchTool`（ROUTER/RETRIEVAL）；
+  `AgentResult.trace_id`；模型 usage 透传（TokenUsage）
+- 评估数据集 `examples/evaluation/dev_knowledge_eval.jsonl`（37 例 / 9 类）
+- CLI：`scripts/run_evaluation.py [--limit N]`、`scripts/run_agent.py --debug`
+- 架构 guard 扩展（evaluation/observability 禁 import lightrag/adapters/provider SDK）
+- 离线单测（metrics / tracer / sinks / trace order / failure）+ 真实 E2E
+  `tests/integration/test_evaluation_e2e.py`
+- 真实评估运行与报告 `docs/STAGE5_EVALUATION_REPORT.md`（明细在 `.local/eval/eval-*.json`）
+
+```text
+AgentOrchestrator ──[Tracer: ContextVar trace_id]──▶ TraceSink ──▶ InMemory / Jsonl (.local/traces/)
+RagSearchTool ────  ROUTER_DECISION / RETRIEVAL events
+   │
+   ▼
+EvalCase.jsonl ──▶ EvaluationRunner(run_case=真实组合 Agent) ──▶ EvalCaseResult ──▶ MetricSummary
+```
+
+**Acceptance Criteria**（已通过）:
+- 工具选择 / 路由意图 / 路由策略 / source recall / citation grounded / 答案术语 / 诚实弃答 /
+  延迟 / token 全部有确定性指标，结果可在 `.local/eval/` 复现
+- 一次请求单个 `trace_id` 贯穿 Agent → Tool → Router → Adapter；sink 前自动脱敏
+- `NO_EVIDENCE` 与系统错误在失败分类中分离，评估不把业务结果当错误
+- 质量门禁：pytest（离线全绿 + 真实 E2E）、ruff、mypy、architecture guard 通过
 
 ## Stage 6 — External Tools
 

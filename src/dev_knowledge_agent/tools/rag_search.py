@@ -8,6 +8,7 @@ Agent layer reason and synthesize. It depends only on the
 
 from __future__ import annotations
 
+import time
 from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
@@ -24,6 +25,8 @@ from dev_knowledge_agent.evidence.models import (
     KnowledgeSearchResult,
     RetrievalDiagnostics,
 )
+from dev_knowledge_agent.observability.models import FailureCategory, TraceEventType
+from dev_knowledge_agent.observability.tracer import Tracer
 from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
 from dev_knowledge_agent.retrieval.models import RoutingDecision
 from dev_knowledge_agent.retrieval.router import QueryRouter
@@ -94,15 +97,26 @@ class RagSearchTool:
     name: str = TOOL_NAME
     description: str = TOOL_DESCRIPTION
 
-    def __init__(self, search_port: KnowledgeSearchPort, *, router: QueryRouter) -> None:
+    def __init__(
+        self,
+        search_port: KnowledgeSearchPort,
+        *,
+        router: QueryRouter,
+        tracer: Tracer | None = None,
+    ) -> None:
         #: Accepts anything satisfying the KnowledgeSearchPort protocol
         #: (structural/dynamic satisfaction allowed for fakes and adapters).
         self._search_port = search_port
         self._router = router
+        self._tracer = tracer
 
     @property
     def input_schema(self) -> type[RagSearchInput]:
         return RagSearchInput
+
+    def _emit(self, event_type: TraceEventType, **attributes: object) -> None:
+        if self._tracer is not None:
+            self._tracer.emit(event_type, **attributes)  # type: ignore[arg-type]
 
     async def invoke(self, input_: RagSearchInput) -> RagSearchResult:
         """Validate the query, route it, run the port, and normalize the result."""
@@ -115,21 +129,71 @@ class RagSearchTool:
 
         plan = self._router.route(input_.query)
         routing = self._router.last_decision
+        if routing is not None:
+            #: Router trace: only the deterministic rule outcome (spec §26); never CoT.
+            self._emit(
+                TraceEventType.ROUTER_DECISION,
+                query=input_.query,
+                intent=routing.intent.value,
+                strategy=routing.strategy.value,
+                reason=routing.reason,
+                fallback_used=routing.fallback_used,
+            )
 
+        start = time.perf_counter()
+        self._emit(
+            TraceEventType.RETRIEVAL_STARTED,
+            query=input_.query,
+            strategy=plan.strategy.value,
+        )
         try:
             result: KnowledgeSearchResult = await self._search_port.search(input_.query, plan=plan)
-        except InvalidKnowledgeQueryError as exc:
-            return RagSearchResult(status=RagSearchStatus.ERROR, query=input_.query, error=str(exc))
-        except KnowledgeSearchNotReadyError as exc:
-            return RagSearchResult(status=RagSearchStatus.ERROR, query=input_.query, error=str(exc))
-        except KnowledgeSearchError as exc:
+        except (
+            InvalidKnowledgeQueryError,
+            KnowledgeSearchNotReadyError,
+            KnowledgeSearchError,
+        ) as exc:
+            self._emit(
+                TraceEventType.RETRIEVAL_COMPLETED,
+                strategy=plan.strategy.value,
+                latency_ms=round((time.perf_counter() - start) * 1000.0, 3),
+                error=str(exc),
+            )
+            self._emit(
+                TraceEventType.ERROR,
+                category=FailureCategory.RETRIEVAL_ERROR.value,
+                error=str(exc),
+            )
             return RagSearchResult(status=RagSearchStatus.ERROR, query=input_.query, error=str(exc))
         except Exception as exc:  # noqa: BLE001 - never let unknown error leak to Agent
+            self._emit(
+                TraceEventType.RETRIEVAL_COMPLETED,
+                strategy=plan.strategy.value,
+                latency_ms=round((time.perf_counter() - start) * 1000.0, 3),
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            self._emit(
+                TraceEventType.ERROR,
+                category=FailureCategory.RETRIEVAL_ERROR.value,
+                error=f"{type(exc).__name__}: {exc}",
+            )
             return RagSearchResult(
                 status=RagSearchStatus.ERROR,
                 query=input_.query,
                 error=f"{type(exc).__name__}: {exc}",
             )
+
+        #: Retrieval trace: counts only, never raw evidence text (spec §28).
+        self._emit(
+            TraceEventType.RETRIEVAL_COMPLETED,
+            strategy=plan.strategy.value,
+            evidence_availability=result.evidence_availability.value,
+            chunk_count=len(result.evidence.chunks),
+            entity_count=len(result.evidence.entities),
+            relationship_count=len(result.evidence.relationships),
+            citation_count=len(result.citations),
+            latency_ms=round((time.perf_counter() - start) * 1000.0, 3),
+        )
 
         if result.evidence_availability is EvidenceAvailability.NONE:
             return RagSearchResult(
