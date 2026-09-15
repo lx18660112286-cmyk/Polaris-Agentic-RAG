@@ -1,0 +1,43 @@
+# ---- Python ----
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+
+# ---- Cache & Tooling ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.coverage.*
+
+# ---- Logs & Runtime Data ----
+logs/
+*.log
+storage/
+rag_storage/
+model_cache/
+.cache/
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
