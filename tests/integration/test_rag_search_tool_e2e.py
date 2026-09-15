@@ -23,6 +23,7 @@ from dev_knowledge_agent.adapters.lightrag.native_baseline import (
     env_vars_available,
     ingest_documents,
 )
+from dev_knowledge_agent.retrieval.router import QueryRouter
 from dev_knowledge_agent.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
 
 pytestmark = pytest.mark.integration
@@ -71,7 +72,7 @@ def test_rag_search_tool_real_e2e(tmp_path: Path) -> None:
             settings=settings,
             knowledge_roots=[PROJECT_ROOT / "examples"],
         )
-        tool = RagSearchTool(search_port=adapter)  # type: ignore[type-abstract]
+        tool = RagSearchTool(search_port=adapter, router=QueryRouter())  # type: ignore[type-abstract]
         try:
             await adapter.initialize()
             #: retrieve the kernel built by initialize() to run ingestion once.

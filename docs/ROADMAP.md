@@ -98,23 +98,40 @@ LightRAG
 
 **Goal**: Agent 无需知道 Kernel-specific 参数。
 
+**状态**: ✅ 已交付（2026-09-15），详见 `docs/STAGE3_RETRIEVAL_ROUTER.md` 与 `docs/adr/0003-retrieval-routing.md`。
+
 **Deliverables**:
-- `Query Router`（根据 query 意图决定 strategy）
-- `RetrievalPlan`（strategy / top_k / rerank）
+- `RetrievalStrategy` / `RetrievalIntent` / `RetrievalPlan` / `RoutingDecision`（`retrieval/models.py`）
+- `QueryRouter`（确定性规则，`retrieval/router.py` + `retrieval/rules.py`）
+- `KnowledgeSearchPort.search(query, *, plan=None)` 演进
+- `LightRAGAdapter` 内 `_STRATEGY_TO_MODE` 映射（`FOCUSED→local` 等，不向上暴露）
+- `RagSearchTool` 注入 Router；`RagSearchResult.routing` 透出 `RoutingDecision`
+- 移除公共契约 `RetrievalDiagnostics.query_mode`
+- routing fixtures + unit tests + real routed E2E
+- 架构 guard 扩展（`retrieval/` 禁 import lightrag/adapters/tools/agent）
 
 ```text
 query
  ↓
-Query Router
+RagSearchTool
+ ↓
+QueryRouter
  ↓
 RetrievalPlan
  ↓
-RagSearchTool / Search Port
+KnowledgeSearchPort
+ ↓
+LightRAGAdapter
+ ↓
+LightRAG
 ```
 
-**Acceptance Criteria**:
-- `local/global/hybrid/mix` 等模式由 Router 内部决定
+**Acceptance Criteria**（已通过）:
+- `local/global/hybrid/naive/mix` 等真实 mode 由 Router 内部决定，只在 Adapter 内
 - Agent 只需要 `query`
+- 确定性、可解释、可离线测试；GENERAL 走显式 fallback（`fallback_used` 可观测）
+- 真实 routed E2E：factual→FOCUSED、multi-document→HYBRID 均拿到 evidence + citation
+- 质量门禁：pytest 全绿、ruff check/format 全绿、mypy 全绿、architecture guard 通过
 
 ## Stage 4 — Single Agent Orchestrator
 

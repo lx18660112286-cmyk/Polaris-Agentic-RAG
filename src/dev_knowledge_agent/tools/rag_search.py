@@ -25,6 +25,8 @@ from dev_knowledge_agent.evidence.models import (
     RetrievalDiagnostics,
 )
 from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
+from dev_knowledge_agent.retrieval.models import RoutingDecision
+from dev_knowledge_agent.retrieval.router import QueryRouter
 
 __all__ = ["RagSearchTool", "RagSearchInput", "RagSearchResult", "RagSearchStatus"]
 
@@ -66,26 +68,34 @@ class RagSearchResult(BaseModel):
     evidence: Evidence = Field(default_factory=Evidence)
     citations: list[Citation] = Field(default_factory=list)
     diagnostics: RetrievalDiagnostics = Field(default_factory=RetrievalDiagnostics)
+    routing: RoutingDecision | None = None
     error: str | None = None
 
 
 class RagSearchTool:
-    """Framework-agnostic search tool bound to a KnowledgeSearchPort."""
+    """Framework-agnostic search tool bound to a KnowledgeSearchPort + QueryRouter.
+
+    The Tool accepts only ``query`` (RagSearchInput). It delegates the
+    retrieval decision to the ``QueryRouter``, which produces an
+    application-owned ``RetrievalPlan`` that is passed to the Port. Neither
+    the Tool nor the Agent controls ``mode/top_k/rerank``.
+    """
 
     name: str = TOOL_NAME
     description: str = TOOL_DESCRIPTION
 
-    def __init__(self, search_port: KnowledgeSearchPort) -> None:
+    def __init__(self, search_port: KnowledgeSearchPort, *, router: QueryRouter) -> None:
         #: Accepts anything satisfying the KnowledgeSearchPort protocol
         #: (structural/dynamic satisfaction allowed for fakes and adapters).
         self._search_port = search_port
+        self._router = router
 
     @property
     def input_schema(self) -> type[RagSearchInput]:
         return RagSearchInput
 
     async def invoke(self, input_: RagSearchInput) -> RagSearchResult:
-        """Validate the query, run the port, and normalize the result."""
+        """Validate the query, route it, run the port, and normalize the result."""
         if not input_.query.strip():
             return RagSearchResult(
                 status=RagSearchStatus.ERROR,
@@ -93,8 +103,11 @@ class RagSearchTool:
                 error="Query must not be empty.",
             )
 
+        plan = self._router.route(input_.query)
+        routing = self._router.last_decision
+
         try:
-            result: KnowledgeSearchResult = await self._search_port.search(input_.query)
+            result: KnowledgeSearchResult = await self._search_port.search(input_.query, plan=plan)
         except InvalidKnowledgeQueryError as exc:
             return RagSearchResult(status=RagSearchStatus.ERROR, query=input_.query, error=str(exc))
         except KnowledgeSearchNotReadyError as exc:
@@ -115,6 +128,7 @@ class RagSearchTool:
                 evidence=result.evidence,
                 citations=result.citations,
                 diagnostics=result.diagnostics,
+                routing=routing,
             )
         return RagSearchResult(
             status=RagSearchStatus.SUCCESS,
@@ -122,4 +136,5 @@ class RagSearchTool:
             evidence=result.evidence,
             citations=result.citations,
             diagnostics=result.diagnostics,
+            routing=routing,
         )

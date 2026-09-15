@@ -31,6 +31,7 @@ from dev_knowledge_agent.evidence.errors import (
     KnowledgeSearchNotReadyError,
 )
 from dev_knowledge_agent.evidence.models import KnowledgeSearchResult
+from dev_knowledge_agent.retrieval.models import RetrievalPlan, RetrievalStrategy
 
 __all__ = ["LightRAGAdapter", "build_lightrag"]
 
@@ -130,7 +131,27 @@ class LightRAGAdapter:
             raise KnowledgeSearchExecutionError(f"Failed to initialize storages: {exc}") from exc
         self._initialized = True
 
-    def _build_query_param(self) -> QueryParam:
+    #: Application RetrievalStrategy -> LightRAG query ``mode``. This mapping
+    #: is the ONLY place that knows the real mode strings; it never leaves the
+    #: adapter package. ``None`` (no plan) falls back to the settings default.
+    _STRATEGY_TO_MODE: dict[RetrievalStrategy, str] = {
+        RetrievalStrategy.FOCUSED: "local",
+        RetrievalStrategy.GLOBAL: "global",
+        RetrievalStrategy.HYBRID: "hybrid",
+        RetrievalStrategy.VECTOR: "naive",
+        RetrievalStrategy.MIXED: "mix",
+    }
+
+    def _build_query_param(self, plan: RetrievalPlan | None) -> QueryParam:
+        if plan is not None:
+            mode = self._STRATEGY_TO_MODE[plan.strategy]
+            return QueryParam(
+                mode=mode,
+                top_k=plan.top_k,
+                chunk_top_k=plan.chunk_top_k,
+                enable_rerank=plan.enable_rerank,
+                include_references=self.settings.include_references,
+            )
         return QueryParam(
             mode=self.settings.default_query_mode,
             top_k=self.settings.default_top_k,
@@ -138,7 +159,9 @@ class LightRAGAdapter:
             include_references=self.settings.include_references,
         )
 
-    async def search(self, query: str) -> KnowledgeSearchResult:
+    async def search(
+        self, query: str, *, plan: RetrievalPlan | None = None
+    ) -> KnowledgeSearchResult:
         """Implement KnowledgeSearchPort.search over the real kernel."""
         query = (query or "").strip()
         if not query:
@@ -149,7 +172,7 @@ class LightRAGAdapter:
         if self._kernel is None:  # pragma: no cover - guarded by _initialized
             raise KnowledgeSearchNotReadyError("Kernel is not available.")
 
-        param = self._build_query_param()
+        param = self._build_query_param(plan)
         try:
             raw = await self._kernel.aquery_data(query, param=param)
         except Exception as exc:  # noqa: BLE001 - normalize LightRAG exceptions

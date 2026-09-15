@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dev_knowledge_agent.evidence.models import KnowledgeSearchResult
 from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
+from dev_knowledge_agent.retrieval.models import RetrievalPlan
 
 
 class FakePort:
@@ -17,7 +18,9 @@ class FakePort:
         self.result = result
         self.called_with: list[str] = []
 
-    async def search(self, query: str) -> KnowledgeSearchResult:
+    async def search(
+        self, query: str, *, plan: RetrievalPlan | None = None
+    ) -> KnowledgeSearchResult:
         self.called_with.append(query)
         return self.result
 
@@ -34,13 +37,18 @@ def test_port_signature_does_not_mention_vendor_types() -> None:
     sig = inspect.signature(KnowledgeSearchPort.search)
     hints = get_type_hints(KnowledgeSearchPort.search)
     assert hints.get("return") is KnowledgeSearchResult
-    #: parameter list must be just (query: str); ignore self/builtin binding
+    #: parameters must be just (query, plan); ignore self/builtin binding
     params = [p for p in sig.parameters.values() if p.name not in ("self", "cls")]
     names = [p.name for p in params]
-    assert names == ["query"]
+    assert names == ["query", "plan"]
     for p in params:
         if p.name == "query":
             assert p.annotation in ("str", str), p.annotation
+        if p.name == "plan":
+            #: plan is an application-owned domain type, never a vendor type
+            assert p.annotation == "RetrievalPlan | None", p.annotation
+    assert "QueryParam" not in str(hints)
+    assert "LightRAG" not in str(hints)
 
 
 def test_result_is_domain_model() -> None:

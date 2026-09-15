@@ -10,6 +10,8 @@ from __future__ import annotations
 from dev_knowledge_agent.evidence.errors import InvalidKnowledgeQueryError
 from dev_knowledge_agent.evidence.models import EvidenceAvailability, KnowledgeSearchResult
 from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
+from dev_knowledge_agent.retrieval.models import RetrievalPlan
+from dev_knowledge_agent.retrieval.router import QueryRouter
 from dev_knowledge_agent.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
 
 
@@ -23,8 +25,12 @@ class FakeKnowledgeSearchPort(KnowledgeSearchPort):
     ) -> None:
         self._result = result
         self._raise_exception = raise_exception
+        self.received_plans: list[RetrievalPlan | None] = []
 
-    async def search(self, query: str) -> KnowledgeSearchResult:
+    async def search(
+        self, query: str, *, plan: RetrievalPlan | None = None
+    ) -> KnowledgeSearchResult:
+        self.received_plans.append(plan)
         if self._raise_exception:
             raise self._raise_exception
         if self._result:
@@ -34,13 +40,17 @@ class FakeKnowledgeSearchPort(KnowledgeSearchPort):
         )
 
 
+def _make_tool(port: FakeKnowledgeSearchPort) -> RagSearchTool:
+    return RagSearchTool(search_port=port, router=QueryRouter())
+
+
 async def test_tool_invoke_success() -> None:
     fake_result = KnowledgeSearchResult(
         query="Access token 的有效期是多少？",
         evidence_availability=EvidenceAvailability.PRESENT,
     )
     fake_port = FakeKnowledgeSearchPort(result=fake_result)
-    tool = RagSearchTool(search_port=fake_port)
+    tool = _make_tool(fake_port)
     input_ = RagSearchInput(query="Access token 的有效期是多少？")
     result = await tool.invoke(input_)
     assert result.status == RagSearchStatus.SUCCESS
@@ -53,7 +63,7 @@ async def test_tool_invoke_no_evidence() -> None:
         query="foo", evidence_availability=EvidenceAvailability.NONE
     )
     fake_port = FakeKnowledgeSearchPort(result=fake_result)
-    tool = RagSearchTool(search_port=fake_port)
+    tool = _make_tool(fake_port)
     input_ = RagSearchInput(query="foo")
     result = await tool.invoke(input_)
     assert result.status == RagSearchStatus.NO_EVIDENCE
@@ -62,7 +72,7 @@ async def test_tool_invoke_no_evidence() -> None:
 
 async def test_tool_invoke_error_catches_domain_exception() -> None:
     fake_port = FakeKnowledgeSearchPort(raise_exception=InvalidKnowledgeQueryError("empty"))
-    tool = RagSearchTool(search_port=fake_port)
+    tool = _make_tool(fake_port)
     input_ = RagSearchInput(query="x")
     result = await tool.invoke(input_)
     assert result.status == RagSearchStatus.ERROR
@@ -72,12 +82,31 @@ async def test_tool_invoke_error_catches_domain_exception() -> None:
 async def test_tool_invoke_error_catches_unknown_exception() -> None:
     msg = "something bad happened"
     fake_port = FakeKnowledgeSearchPort(raise_exception=RuntimeError(msg))
-    tool = RagSearchTool(search_port=fake_port)
+    tool = _make_tool(fake_port)
     input_ = RagSearchInput(query="x")
     result = await tool.invoke(input_)
     assert result.status == RagSearchStatus.ERROR
     assert "RuntimeError" in result.error
     assert msg in result.error
+
+
+async def test_tool_passes_router_plan_to_port() -> None:
+    fake_port = FakeKnowledgeSearchPort(
+        result=KnowledgeSearchResult(
+            query="Access token 的有效期是多少？",
+            evidence_availability=EvidenceAvailability.PRESENT,
+        )
+    )
+    tool = _make_tool(fake_port)
+    input_ = RagSearchInput(query="Access token 的有效期是多少？")
+    result = await tool.invoke(input_)
+    assert result.status == RagSearchStatus.SUCCESS
+    #: the Tool forwarded a Router-generated plan to the Port (not None)
+    assert len(fake_port.received_plans) == 1
+    assert fake_port.received_plans[0] is not None
+    #: routing decision is surfaced for observability
+    assert result.routing is not None
+    assert result.routing.strategy.value == "focused"
 
 
 def test_input_rejects_empty_query() -> None:
@@ -93,7 +122,7 @@ def test_input_rejects_empty_query() -> None:
 def test_tool_exports_metadata() -> None:
     from dev_knowledge_agent.tools.rag_search import TOOL_DESCRIPTION, TOOL_NAME
 
-    tool = RagSearchTool(search_port=FakeKnowledgeSearchPort())
+    tool = RagSearchTool(search_port=FakeKnowledgeSearchPort(), router=QueryRouter())
     assert tool.name == TOOL_NAME
     assert tool.description == TOOL_DESCRIPTION
     assert tool.input_schema is RagSearchInput

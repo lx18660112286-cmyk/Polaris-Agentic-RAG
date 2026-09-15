@@ -19,6 +19,11 @@ from dev_knowledge_agent.evidence.errors import (
     KnowledgeSearchNotReadyError,
 )
 from dev_knowledge_agent.evidence.models import EvidenceAvailability
+from dev_knowledge_agent.retrieval.models import (
+    RetrievalIntent,
+    RetrievalPlan,
+    RetrievalStrategy,
+)
 
 
 @dataclass
@@ -153,3 +158,70 @@ async def test_settings_drive_query_param_mode() -> None:
     assert seen_params[0].top_k == 7
     assert seen_params[0].enable_rerank is False
     assert seen_params[0].include_references is True
+
+
+def _make_plan(strategy: RetrievalStrategy, *, top_k: int = 5) -> RetrievalPlan:
+    return RetrievalPlan(
+        intent=RetrievalIntent.GENERAL,
+        strategy=strategy,
+        top_k=top_k,
+        enable_rerank=False,
+        reason="test",
+    )
+
+
+@pytest.mark.parametrize(
+    ("strategy", "expected_mode"),
+    [
+        (RetrievalStrategy.FOCUSED, "local"),
+        (RetrievalStrategy.GLOBAL, "global"),
+        (RetrievalStrategy.HYBRID, "hybrid"),
+        (RetrievalStrategy.VECTOR, "naive"),
+        (RetrievalStrategy.MIXED, "mix"),
+    ],
+)
+async def test_strategy_maps_to_lightrag_mode(
+    strategy: RetrievalStrategy, expected_mode: str
+) -> None:
+    kernel = StubKernel()
+    seen_params: list = []
+
+    async def capturing_aquery_data(query: str, param=None) -> dict:
+        seen_params.append(param)
+        return {
+            "status": "success",
+            "message": "ok",
+            "data": {"entities": [], "relationships": [], "chunks": [], "references": []},
+            "metadata": {},
+        }
+
+    kernel.aquery_data = capturing_aquery_data  # type: ignore[method-assign]
+    adapter = LightRAGAdapter(kernel=kernel)
+    await adapter.initialize()
+    await adapter.search("q", plan=_make_plan(strategy))
+    assert len(seen_params) == 1
+    assert seen_params[0].mode == expected_mode
+    assert seen_params[0].top_k == 5
+
+
+async def test_plan_none_uses_settings_default() -> None:
+    kernel = StubKernel()
+    seen_params: list = []
+
+    async def capturing_aquery_data(query: str, param=None) -> dict:
+        seen_params.append(param)
+        return {
+            "status": "success",
+            "message": "ok",
+            "data": {"entities": [], "relationships": [], "chunks": [], "references": []},
+            "metadata": {},
+        }
+
+    kernel.aquery_data = capturing_aquery_data  # type: ignore[method-assign]
+    settings = LightRAGAdapterSettings(default_query_mode="global", default_top_k=3)
+    adapter = LightRAGAdapter(kernel=kernel, settings=settings)
+    await adapter.initialize()
+    await adapter.search("q")  # plan defaults to None
+    assert len(seen_params) == 1
+    assert seen_params[0].mode == "global"
+    assert seen_params[0].top_k == 3

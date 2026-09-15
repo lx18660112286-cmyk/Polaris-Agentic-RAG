@@ -201,7 +201,6 @@ def map_query_data_to_result(
         chunks=resolved_chunks, entities=resolved_entities, relationships=relationships
     )
     diagnostics = RetrievalDiagnostics(
-        query_mode=_as_str(metadata.get("query_mode")),
         keywords=keywords,
         entity_count=len(resolved_entities),
         relationship_count=len(relationships),

@@ -185,6 +185,14 @@ EVIDENCE_FORBIDDEN = (
     "dev_knowledge_agent.agent",
 )
 
+#: ``retrieval/`` is the application strategy layer: it must never depend on
+#: infrastructure (LightRAG / adapters / tools / agent).
+RETRIEVAL_FORBIDDEN = (
+    "dev_knowledge_agent.adapters",
+    "dev_knowledge_agent.tools",
+    "dev_knowledge_agent.agent",
+)
+
 
 def _iter_import_tuples(tree: ast.Module):
     """Yield (lineno, imported_name) for every static import/from-import."""
@@ -239,3 +247,9 @@ def test_evidence_do_not_import_downstream_layers() -> None:
     """evidence/ must be domain-only (no LightRAG/adapters/tools/agent)."""
     layer = SRC_ROOT / "evidence"
     _assert_layer_does_not_import(layer, EVIDENCE_FORBIDDEN, extra=(FORBIDDEN_MODULE_ROOT,))
+
+
+def test_retrieval_do_not_import_infrastructure_layers() -> None:
+    """retrieval/ is the application strategy layer: no adapters/tools/agent/lightrag."""
+    layer = SRC_ROOT / "retrieval"
+    _assert_layer_does_not_import(layer, RETRIEVAL_FORBIDDEN, extra=(FORBIDDEN_MODULE_ROOT,))

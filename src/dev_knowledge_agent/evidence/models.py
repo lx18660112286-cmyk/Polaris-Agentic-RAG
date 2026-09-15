@@ -12,7 +12,6 @@ Field shapes are grounded in the pinned LightRAG kernel's real
 * relationship: src_id, tgt_id, description, keywords, weight,
                source_id, file_path, created_at, reference_id
 * reference  : reference_id, file_path
-* metadata.query_mode
 * metadata.keywords.{high_level, low_level}
 * metadata.processing_info.{total_entities_found,
                total_relations_found, entities_after_truncation,
@@ -133,7 +132,6 @@ class RetrievalDiagnostics(BaseModel):
     kernel may omit ``processing_info`` entirely, hence all ``None``.
     """
 
-    query_mode: str | None = None
     keywords: KeywordSet = Field(default_factory=KeywordSet)
     entity_count: int = 0
     relationship_count: int = 0

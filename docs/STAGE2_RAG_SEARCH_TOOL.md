@@ -107,8 +107,8 @@ class KnowledgeSearchPort(Protocol):
 
 唯一允许 import LightRAG 的生产模块。职责：
 
-1. 生命周期：`initialize()`（幂等）→ `search()` → `close()`（幂等，可在 `finally` 使用）。
-   `initialize()` 内 `finalize_storages()` 保证资源释放。
+1. 生命周期（正确语义）：`initialize()`（幂等）→ `search()` → `close()`（幂等，可在 `finally` 使用）。
+   `initialize()` 内部调用 `initialize_storages()`；`close()` 内部调用 `finalize_storages()` 释放资源。
 2. 构建 `QueryParam`（mode / top_k / rerank / include_references）——**不向上暴露**。
 3. 只调用 `aquery_data`（不再复跑 `aquery`）。
 4. 校验原始响应：`status != "success"` → `KnowledgeSearchExecutionError`（含 `failure_reason`）。

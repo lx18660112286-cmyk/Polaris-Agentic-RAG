@@ -1,0 +1,42 @@
+{
+  "description": "Stage 3 deterministic routing test set (spec §20). Grounded in the Stage 1 example knowledge base.",
+  "cases": [
+    {
+      "case_id": "factual_token_expiry",
+      "query": "Access token 的有效期是多少？",
+      "expected_intent": "factual",
+      "expected_strategy": "focused"
+    },
+    {
+      "case_id": "terminology_error_code",
+      "query": "DB_CONNECTION_POOL_EXHAUSTED 是什么意思？",
+      "expected_intent": "terminology",
+      "expected_strategy": "focused"
+    },
+    {
+      "case_id": "relational_dependencies",
+      "query": "Order Service 依赖哪些组件？",
+      "expected_intent": "relational",
+      "expected_strategy": "hybrid"
+    },
+    {
+      "case_id": "multi_document_5xx",
+      "query": "Order Service 发布后出现大量 5xx，应如何定位问题并判断是否回滚？",
+      "expected_intent": "multi_document",
+      "expected_strategy": "hybrid"
+    },
+    {
+      "case_id": "overview_core_components",
+      "query": "整个系统的核心组件和关系是什么？",
+      "expected_intent": "overview",
+      "expected_strategy": "global"
+    },
+    {
+      "case_id": "general_unclear",
+      "query": "你能介绍一下这里吗？",
+      "expected_intent": "general",
+      "expected_strategy": "hybrid",
+      "expectation": "unclear -> explicit fallback (hybrid)"
+    }
+  ]
+}

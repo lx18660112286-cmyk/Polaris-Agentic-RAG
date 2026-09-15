@@ -33,7 +33,9 @@ Agent Orchestrator
         ↓
    RagSearchTool
         ↓
- Retrieval Strategy
+   QueryRouter
+        ↓
+   RetrievalPlan
         ↓
 KnowledgeSearchPort
         ↓
@@ -74,6 +76,12 @@ Final Answer
 RagSearchTool
       │
       ▼
+QueryRouter
+      │
+      ▼
+RetrievalPlan
+      │
+      ▼
 KnowledgeSearchPort
       ▲
       │  implements
@@ -87,9 +95,30 @@ LightRAG
 - 生产代码中只有 `src/dev_knowledge_agent/adapters/lightrag/` 允许 import LightRAG（由 `tests/architecture/test_boundaries.py` 用 AST 强制）。
 - 禁止从 Adapter 向上 re-export `LightRAG` / `QueryParam`。
 - 禁止 Tool API 接收 LightRAG-specific 类型。
-- **Stage 2 已落地**：`KnowledgeSearchPort` 只暴露 `async search(query) -> KnowledgeSearchResult`；
-  `KnowledgeSearchResult` 是框架无关的领域模型（`evidence/models.py`），不携带 LightRAG 类型/参数。
-- Tool 只依赖 Port，不依赖 Adapter（由架构测试强制 `tools/` 不得 import `adapters/`）。
+- **Stage 2 / Stage 3 已落地**：`KnowledgeSearchPort` 暴露 `async search(query, *, plan=None) -> KnowledgeSearchResult`；
+  `plan` 是应用自有 `RetrievalPlan`；`KnowledgeSearchResult` 是框架无关领域模型（`evidence/models.py`）。
+- Tool 只依赖 Port + Router，不依赖 Adapter（由架构测试强制 `tools/` 不得 import `adapters/`）。
+- **Retrieval 映射只在 Adapter**：`RetrievalStrategy → LightRAG mode`（`_STRATEGY_TO_MODE`）藏于
+  `adapters/lightrag/`。Router / Tool / protocols 不触碰真实 `mode`。
+
+## Retrieval（Stage 3 已实现）
+
+`retrieval/` 是应用策略层（框架无关，不含 vendor 类型）：
+
+```text
+query
+  ↓
+QueryRouter.route(query)
+  ↓
+RetrievalPlan { intent, strategy, top_k, chunk_top_k, enable_rerank, reason }
+  ↓
+KnowledgeSearchPort.search(query, plan)
+```
+
+- `RetrievalStrategy ∈ {FOCUSED, GLOBAL, HYBRID, VECTOR, MIXED}`（应用自有）
+- `RetrievalIntent ∈ {FACTUAL, TERMINOLOGY, RELATIONAL, MULTI_DOCUMENT, OVERVIEW, GENERAL}`
+- `QueryRouter` 用**确定性规则**（`retrieval/rules.py`），无网络 / 无 LLM / 离线可测。
+- 回退显式：意外失败 → 安全 hybrid plan + `RoutingDecision.fallback_used=True`（透出在 `RagSearchResult.routing`）。
 
 ## Evidence Contract（Stage 2 已实现）
 
@@ -100,7 +129,7 @@ KnowledgeSearchResult
  ├─ query
  ├─ evidence        { chunks / entities / relationships }
  ├─ citations       [ {reference_id, source_name, source_path, source_resolution} ]
- ├─ diagnostics     { query_mode / keywords / counts / processing_info(...) }
+ ├─ diagnostics     { keywords / counts / processing_info(...) }
  └─ evidence_availability ∈ {NONE, PRESENT, TRUNCATED}
 ```
 
@@ -108,6 +137,8 @@ KnowledgeSearchResult
 - Kernel 只给 citation 的 **basename** → Adapter 内部用 `SourceResolver` 还原完整路径，
   三态结果（`RESOLVED / UNRESOLVED / AMBIGUOUS`），歧义绝不静默选择。
 - Kernel/Adapter 的各种失败被 `evidence/errors.py` 归一化为统一领域异常（Tool/Agent 只见统一失败语义）。
+- **Stage 3 移除** `RetrievalDiagnostics.query_mode`：真实 LightRAG `mode` 只在 Adapter 内部，
+  应用层用 `RetrievalPlan.strategy` / `RetrievalIntent`。
 
 ## workspace 隔离（Stage 2 新增）
 
@@ -115,9 +146,9 @@ LightRAG 的 `doc_status` 去重与 store 按 `workspace` 命名空间划分，�
 `LightRAGAdapterSettings.workspace`（默认跟随全局 `WORKSPACE` env）用于为不同知识库/环境
 隔离去重与存储；留空即共享全局。详情见 `docs/STAGE2_RAG_SEARCH_TOOL.md` §6。
 
-## Tool 不应暴露 Kernel 参数
+## Tool 不应暴露 Kernel 参数（Stage 3 已落实）
 
-未来 Agent 不应直接控制：
+Agent 不应直接控制：
 
 ```text
 mode
@@ -133,32 +164,7 @@ Agent 理想情况下只需要 `query`：
 rag_search(query="...")
 ```
 
-检索参数由 `Query Router / Retrieval Strategy` 内部决定。
-
-## 未来 Retrieval Plan（Stage 3 目标，Stage 0 不实现）
-
-```text
-User Query
-   ↓
-RagSearchTool
-   ↓
-Query Router
-   ↓
-RetrievalPlan
-   ↓
-KnowledgeSearchPort
-   ↓
-LightRAGAdapter
-```
-
-未来的内部领域模型可能类似：
-
-```text
-RetrievalPlan
-- strategy
-- top_k
-- rerank
-```
+检索参数已由 `QueryRouter` 内部决定并产出 `RetrievalPlan`（Stage 3）。
 
 ## 旁路能力
 
@@ -198,7 +204,8 @@ LightRAG 负责（Kernel 能力）：
 如何把 RAG Kernel（LightRAG）转化为 Agent 可以可靠使用的 Tool（RagSearchTool）。
 ```
 
-Stage 0 只建立这些能力未来存在的位置和边界，不实现业务逻辑。
-Stage 1 验证了 pinned Kernel 的真实 E2E 行为并提供设计观察依据（见 `docs/STAGE1_LIGHTRAG_BASELINE.md`）。
-Stage 2 已落地 `RagSearchTool` / `KnowledgeSearchPort` / Evidence Contract / `LightRAGAdapter`
-（见 `docs/STAGE2_RAG_SEARCH_TOOL.md` 与 `docs/adr/0002-evidence-contract-and-search-port.md`）。
+Stage 0 建立这些能力的位置与边界；Stage 1 用真实运行验证了 pinned Kernel 的 E2E 行为
+（见 `docs/STAGE1_LIGHTRAG_BASELINE.md`）；Stage 2 落地 `RagSearchTool / KnowledgeSearchPort /
+Evidence Contract / LightRAGAdapter`（见 `docs/STAGE2_RAG_SEARCH_TOOL.md` 与 `ADR 0002`）；
+Stage 3 落地确定性 `QueryRouter → RetrievalPlan` 与 `retrieval/` 策略层（见
+`docs/STAGE3_RETRIEVAL_ROUTER.md` 与 `ADR 0003`）。

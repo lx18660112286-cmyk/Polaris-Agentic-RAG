@@ -57,7 +57,6 @@ def test_hybrid_success_maps_chunks_references_and_diagnostics(tmp_path: Path) -
     assert citation.source_resolution is SourceResolutionStatus.RESOLVED
 
     #: diagnostics
-    assert result.diagnostics.query_mode == "hybrid"
     assert result.diagnostics.entity_count == 2
     assert result.diagnostics.chunk_count == 1
     assert result.diagnostics.total_entities_found == 30
@@ -79,7 +78,6 @@ def test_naive_success_supports_empty_entities_and_relationships(tmp_path: Path)
     assert result.evidence.entities == []
     assert result.evidence.relationships == []
     assert len(result.evidence.chunks) == 1
-    assert result.diagnostics.query_mode == "naive"
     assert result.evidence_availability is EvidenceAvailability.PRESENT
 
 
