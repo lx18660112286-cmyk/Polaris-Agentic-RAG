@@ -137,22 +137,43 @@ LightRAG
 
 **Goal**: 单 Agent 编排，Agent 自主决定是否调用知识检索 Tool。
 
+**状态**: ✅ 已交付（2026-09-15），详见 `docs/STAGE4_SINGLE_AGENT.md` 与 `docs/adr/0004-single-agent-tool-calling.md`。
+
 **Deliverables**:
-- Agent / Planner
-- Tool Registry（注册 RagSearchTool 等）
-- Tool Calling Loop 最小闭环
+- `AgentOrchestrator`（原生 Tool Calling 状态机，几十行，不引入 Agent 框架）
+- `AgentModelPort`（`protocols/agent_model.py`，provider-neutral）
+- `DeepSeekAgentModelAdapter`（`adapters/agent_model/`，唯一 import `openai` 的地方）
+- `AgentTool` + `ToolRegistry`（register / dedup / unknown / argument validation）
+- `AgentRagSearchTool`（薄 wrapper，复用 Stage 2/3 `RagSearchTool`，不破坏其 contract）
+- `agent/models.py`（`AgentMessage / AgentToolCall / AgentModelResponse / AgentResult / ToolCallRecord`）
+- `agent/prompts.py`（tool-selection / grounding / citation / failure policy）
+- `agent/errors.py` + 终止防护（`max_steps` / `max_tool_calls` / 重复调用拒绝）
+- 组合根 `bootstrap.build_agent`（返回 `BuiltAgent`）+ CLI `scripts/run_agent.py`
+- 架构 guard（Agent 层 + openai 仅限 agent_model 边界）
+- 离线单测 + 真实 Agent E2E（direct / tool / insufficient-knowledge）
 
 ```text
-Agent
+User
  ↓
-Tool Registry
+AgentOrchestrator (tool_choice="auto")
+ ↓
+ToolRegistry
  ↓
 RagSearchTool
+ ↓
+QueryRouter
+ ↓
+RetrievalPlan
+ ↓
+KnowledgeSearchPort
 ```
 
-**Acceptance Criteria**:
-- Agent 能根据任务判断调用/不调用检索工具
-- 含 insufficient evidence 与 tool failure 的处理路径
+**Acceptance Criteria**（已通过）:
+- Agent 能根据任务判断调用/不调用检索工具（tool_choice="auto" 真实验证）
+- 含 insufficient evidence 与 tool failure 的处理路径（不幻觉）
+- Agent 只输 `query`；永不控制 `mode/top_k/rerank`
+- Agent 核心不依赖 provider SDK（openai 仅限 `adapters/agent_model/`）
+- 质量门禁：pytest 全绿、ruff、mypy、architecture guard 通过
 
 ## Stage 5 — Evaluation + Observability
 

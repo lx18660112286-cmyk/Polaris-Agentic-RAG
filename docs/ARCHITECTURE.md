@@ -9,7 +9,7 @@
 ```text
 User
  ↓
-Agent
+AgentOrchestrator
  ↓
 Tool Registry
  ↓
@@ -18,16 +18,19 @@ RagSearchTool
 Knowledge Retrieval
 ```
 
-Agent 只面向 Tool。Agent 理想情况下只需要提供 `query`，例如：
+Agent（Stage 4 已实现）通过原生 Tool Calling 自主决定"直接回答 还是 检索"。Agent 只需提供 `query`，
+例如：
 
 ```python
-await rag_search_tool.invoke(query="Order Service 部署失败后应该如何回滚？")
+await agent.run("Order Service 部署失败后应该如何回滚？")
 ```
 
 ## 工程视角（内部实现层次）
 
 ```text
-Agent Orchestrator
+User
+        ↓
+ AgentOrchestrator
         ↓
    Tool Registry
         ↓
@@ -140,6 +143,28 @@ KnowledgeSearchResult
 - **Stage 3 移除** `RetrievalDiagnostics.query_mode`：真实 LightRAG `mode` 只在 Adapter 内部，
   应用层用 `RetrievalPlan.strategy` / `RetrievalIntent`。
 
+## Agent（Stage 4 已实现）
+
+Single Agent 编排层（`agent/`）：
+
+```text
+User
+ ↓
+AgentOrchestrator  (native tool calling loop, tool_choice="auto")
+ ↓
+ToolRegistry
+ ↓
+AgentRagSearchTool  (薄 wrapper, 复用 Stage 2/3 RagSearchTool)
+```
+
+- **Layer 1（Agent）**：`AgentModelPort`（framework-agnostic）让 LLM 决定"直接回答 还是 调
+  `search_dev_knowledge`"——用 provider 原生 Tool Calling，不自制 ACTION 文本协议。
+- `DeepSeekAgentModelAdapter`（`adapters/agent_model/`）是唯一 import `openai` 的地方；Agent 核心
+  不依赖 provider SDK。
+- **Layer 2（RAG）**：仍由 Stage 3 `QueryRouter` 决定"怎么检索"。Agent 永不接触 `mode/top_k/rerank`。
+- `AgentResult / ToolCallRecord / AgentStatus`：供调用方消费与未来 Stage 5 observability。
+- 终止防护：`max_steps` / `max_tool_calls` / 重复调用拒绝；错误归一化不外泄 SDK 异常。
+
 ## workspace 隔离（Stage 2 新增）
 
 LightRAG 的 `doc_status` 去重与 store 按 `workspace` 命名空间划分，与 `working_dir` 解耦。
@@ -208,4 +233,6 @@ Stage 0 建立这些能力的位置与边界；Stage 1 用真实运行验证了 
 （见 `docs/STAGE1_LIGHTRAG_BASELINE.md`）；Stage 2 落地 `RagSearchTool / KnowledgeSearchPort /
 Evidence Contract / LightRAGAdapter`（见 `docs/STAGE2_RAG_SEARCH_TOOL.md` 与 `ADR 0002`）；
 Stage 3 落地确定性 `QueryRouter → RetrievalPlan` 与 `retrieval/` 策略层（见
-`docs/STAGE3_RETRIEVAL_ROUTER.md` 与 `ADR 0003`）。
+`docs/STAGE3_RETRIEVAL_ROUTER.md` 与 `ADR 0003`）；Stage 4 实现 `Single Agent`（原生 Tool
+Calling + `AgentOrchestrator`），Agent 已不再是 roadmap 中的未来概念（见 `docs/STAGE4_SINGLE_AGENT.md`
+与 `ADR 0004`）。

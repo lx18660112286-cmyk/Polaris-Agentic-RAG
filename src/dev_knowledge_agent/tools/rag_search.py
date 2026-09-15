@@ -27,15 +27,25 @@ from dev_knowledge_agent.evidence.models import (
 from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
 from dev_knowledge_agent.retrieval.models import RoutingDecision
 from dev_knowledge_agent.retrieval.router import QueryRouter
+from dev_knowledge_agent.tools.errors import InvalidToolArgumentsError
+from dev_knowledge_agent.tools.protocol import ToolDefinition
 
-__all__ = ["RagSearchTool", "RagSearchInput", "RagSearchResult", "RagSearchStatus"]
+__all__ = [
+    "RagSearchTool",
+    "RagSearchInput",
+    "RagSearchResult",
+    "RagSearchStatus",
+    "AgentRagSearchTool",
+]
 
 TOOL_NAME = "search_dev_knowledge"
 TOOL_DESCRIPTION = (
-    "Search the internal developer knowledge base for deployment, "
-    "authentication, incident troubleshooting, and service architecture. "
-    "Returns structured evidence, citations, and retrieval diagnostics. "
-    "It does not search logs, Git, databases, or the Web."
+    "Search the internal developer knowledge base about: "
+    "deployment, authentication / access tokens, production incidents / "
+    "runbooks, and service architecture & dependencies. Returns structured "
+    "evidence plus source citations. "
+    "Do NOT use it for general conversation, arithmetic, generic programming "
+    "knowledge, or external web facts."
 )
 
 
@@ -138,3 +148,37 @@ class RagSearchTool:
             diagnostics=result.diagnostics,
             routing=routing,
         )
+
+
+class AgentRagSearchTool:
+    """Thin AgentTool-compatible wrapper around RagSearchTool (spec §15).
+
+    Adapts ``RagSearchTool`` to the generic ``AgentTool`` surface without
+    rewriting it, so the Tool contract (Stage 2/3) stays untouched. The
+    registry builds the validated ``RagSearchInput`` from ``input_schema``
+    and this wrapper narrows it back before delegating.
+    """
+
+    name: str = TOOL_NAME
+    description: str = TOOL_DESCRIPTION
+
+    def __init__(self, tool: RagSearchTool) -> None:
+        self._tool = tool
+
+    @property
+    def input_schema(self) -> type[RagSearchInput]:
+        return RagSearchInput
+
+    def as_tool_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name=self.name,
+            description=self.description,
+            parameters=RagSearchInput,
+        )
+
+    async def invoke(self, input_: object) -> RagSearchResult:
+        if not isinstance(input_, RagSearchInput):
+            raise InvalidToolArgumentsError(
+                f"Tool {self.name!r} expects RagSearchInput, got {type(input_).__name__}"
+            )
+        return await self._tool.invoke(input_)

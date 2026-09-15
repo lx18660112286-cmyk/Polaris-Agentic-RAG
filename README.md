@@ -8,7 +8,7 @@ LightRAG 只是它背后的 RAG Kernel。
 > 而是：
 >
 > ```text
-> Agent → Tool Registry → RagSearchTool → Retrieval Strategy
+> User → AgentOrchestrator → Tool Registry → RagSearchTool → Retrieval Strategy
 >      → KnowledgeSearchPort → LightRAGAdapter → LightRAG Kernel
 > ```
 
@@ -73,19 +73,25 @@ embedding/LLM/rerank 集成、references 数据。
 ## 7. 本项目不做什么
 
 - 不重复实现 LightRAG 已有能力（自研 RAG Engine）。
-- Stage 0 不实现：RagSearchTool 业务逻辑、KnowledgeSearchPort 正式接口、
-  LightRAGAdapter 正式业务实现、Retrieval Router、RetrievalPlan、
-  Evidence Contract 正式模型、Agent、Tool Calling Loop、ingestion pipeline、
-  evaluation engine、tracing backend、真实模型请求。
+- 各阶段陆续实现后，以下仅作为当时的非目标（historical）：Stage 0 不实现
+  RagSearchTool 业务逻辑、KnowledgeSearchPort、LightRAGAdapter、Retrieval Router、
+  Evidence Contract、Agent、Tool Calling Loop、ingestion pipeline、evaluation、
+  tracing、真实模型请求 —— 这些已在 Stage 2/3/4 逐阶段落地。
+- Stage 4 明确不做：外部 Tools（Git/Log/DB/Web，Stage 6）、Multi-Agent、LangGraph、
+  长期记忆 / 会话持久化、完整 Evaluation framework、Tracing backend、Web UI。
 
 ## 8. 当前 Stage
 
-**Stage 0 — Clean Bootstrap + LightRAG Source Integration**（已完成本文件编写时间点）。
+**Stage 4 — Single Agent Orchestrator**（当前已实现，2026-09-15）。
 
-- LightRAG 以 Git Submodule 接入并 pin 到 `02dcd8df754ec312b807bdd4d67737b97bc38679`（`main`，clean）。
-- editable source install，`lightrag.__file__` 解析到 `third_party/LightRAG`。
-- 生产代码 LightRAG import 仅允许在 `src/dev_knowledge_agent/adapters/lightrag/`。
-- 全部 Quality Gates 通过，详见最终汇报。
+- Stage 0：Clean Bootstrap + LightRAG Source Integration（`third_party/LightRAG` submodule，
+  pin `02dcd8df754ec312b807bdd4d67737b97bc38679`）。
+- Stage 1：Native LightRAG E2E Baseline（真实 provider，记录 Kernel 行为）。
+- Stage 2：`RagSearchTool` + `KnowledgeSearchPort` + Evidence Contract + `LightRAGAdapter`。
+- Stage 3：`QueryRouter` + `RetrievalPlan` + Retrieval Strategy（确定性路由）。
+- Stage 4：`AgentOrchestrator`（原生 Tool Calling）+ `ToolRegistry` + `DeepSeekAgentModelAdapter`。
+
+各阶段与验收见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ## 9. 项目结构
 
@@ -101,19 +107,35 @@ embedding/LLM/rerank 集成、references 数据。
 │   ├── LIGHTRAG_SOURCE_INTEGRATION.md
 │   └── adr/0001-lightrag-as-rag-kernel.md
 ├── examples/knowledge_base/   # 虚拟系统：deployment / api_auth / incident_runbook / service_overview
-├── scripts/README.md
+├── scripts/
+│   ├── stage1_baseline.py          # Stage 1 基线
+│   └── run_agent.py                # Stage 4 Agent CLI 演示
 ├── src/dev_knowledge_agent/
-│   ├── config/settings.py          # 应用配置
-│   ├── protocols/                  # 端口（Stage 2 定义 KnowledgeSearchPort）
-│   ├── adapters/lightrag/          # 唯一允许 import LightRAG 的包
-│   │   ├── settings.py
-│   │   ├── errors.py
-│   │   └── source_probe.py
-│   ├── tools/ evidence/ router/ agent/ evaluation/ observability/  # 未来位置，Stage 0 仅占位
+│   ├── config/settings.py          # 应用配置（含 agent_* 设置）
+│   ├── protocols/
+│   │   ├── knowledge_search.py     # KnowledgeSearchPort（Stage 2）
+│   │   └── agent_model.py          # AgentModelPort（Stage 4）
+│   ├── adapters/
+│   │   ├── lightrag/               # 唯一允许 import LightRAG 的包
+│   │   │   ├── settings.py / errors.py / source_probe.py
+│   │   │   ├── adapter.py / mapper.py / source_resolver.py / native_baseline.py
+│   │   └── agent_model/
+│   │       └── deepseek.py         # 唯一允许 import openai 的包
+│   ├── retrieval/                  # Stage 3：QueryRouter / RetrievalPlan / rules
+│   ├── evidence/                   # Stage 2：Evidence Contract + errors
+│   ├── tools/
+│   │   ├── protocol.py             # AgentTool / ToolDefinition（Stage 4）
+│   │   ├── registry.py             # ToolRegistry（Stage 4）
+│   │   └── rag_search.py           # RagSearchTool + AgentRagSearchTool wrapper
+│   ├── agent/
+│   │   ├── orchestrator.py         # Agent Loop（Stage 4）
+│   │   ├── models.py / prompts.py / errors.py
+│   ├── bootstrap.py                # 组合根：build_agent -> BuiltAgent
+│   └── evaluation/ observability/  # 未来位置（Stage 5）
 ├── tests/
 │   ├── architecture/test_boundaries.py   # AST 架构守卫
-│   ├── smoke/                            # 离线安全 smoke tests
-│   ├── unit/  integration/               # 占位
+│   ├── unit/                             # 离线单测（registry / orchestrator / router / mapper ...）
+│   └── integration/                      # 真实 provider E2E（native / tool / routed / agent）
 └── third_party/LightRAG                  # git submodule
 ```
 
@@ -177,19 +199,25 @@ mypy src
 
 所有命令都必须通过。范围默认排除 `third_party/`（不 lint LightRAG upstream）。
 
-## 15. Stage 1 下一步
+## 15. 一次真实 Agent 会话（Stage 4 演示）
 
-Stage 1 — **LightRAG Native E2E Baseline**：真实受控 LLM/Embedding、storage
-lifecycle、ingest example KB、native query、query mode 对比、references、
-structured retrieval data、unknown-question 行为，回答：
+需要真实凭据（`DEEPSEEK_API_KEY`）：
 
-```text
-LightRAG Kernel 实际能稳定提供什么？
+```bash
+.\\.venv\\Scripts\\python.exe scripts/run_agent.py
 ```
 
-然后再进入 Stage 2 设计 `RagSearchTool` / `KnowledgeSearchPort` /
-`LightRAGAdapter` / Evidence Contract。
+```text
+User> Access token 的有效期是多少？
+Agent> access token 的有效期是 30 分钟。[api_auth.md]
+```
+
+Agent（`AgentOrchestrator`）通过原生 Tool Calling 自主决定直接回答还是调用
+`search_dev_knowledge`，并基于返回的 evidence 综合答案、引用 source。
 
 ## 架构决策
 
-为什么要这套分层？见 [docs/adr/0001-lightrag-as-rag-kernel.md](docs/adr/0001-lightrag-as-rag-kernel.md)。
+为什么要这套分层？见 [docs/adr/0001-lightrag-as-rag-kernel.md](docs/adr/0001-lightrag-as-rag-kernel.md)、
+[docs/adr/0002-evidence-contract-and-search-port.md](docs/adr/0002-evidence-contract-and-search-port.md)、
+[docs/adr/0003-retrieval-routing.md](docs/adr/0003-retrieval-routing.md)、
+[docs/adr/0004-single-agent-tool-calling.md](docs/adr/0004-single-agent-tool-calling.md)。

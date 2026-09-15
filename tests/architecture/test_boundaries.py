@@ -173,11 +173,7 @@ def test_adapter_package_imports_are_isolated() -> None:
 #: forbidden module prefixes, relative to dev_knowledge_agent.*
 TOOLS_FORBIDDEN_ADAPTER = ("dev_knowledge_agent.adapters",)
 
-PROTOCOL_FORBIDDEN = (
-    "dev_knowledge_agent.adapters",
-    "dev_knowledge_agent.tools",
-    "dev_knowledge_agent.agent",
-)
+PROTOCOL_FORBIDDEN = ("dev_knowledge_agent.adapters",)
 
 EVIDENCE_FORBIDDEN = (
     "dev_knowledge_agent.adapters",
@@ -192,6 +188,10 @@ RETRIEVAL_FORBIDDEN = (
     "dev_knowledge_agent.tools",
     "dev_knowledge_agent.agent",
 )
+
+#: ``agent/`` may depend on protocols / tools / evidence but never on
+#: infrastructure (adapters / LightRAG) nor a provider SDK (openai).
+AGENT_FORBIDDEN = ("dev_knowledge_agent.adapters", "openai", FORBIDDEN_MODULE_ROOT)
 
 
 def _iter_import_tuples(tree: ast.Module):
@@ -238,9 +238,9 @@ def test_tools_do_not_import_lightrag() -> None:
 
 
 def test_protocols_do_not_import_downstream_layers() -> None:
-    """protocols/ must be an upstream abstraction (no adapters/tools/agent)."""
+    """protocols/ is an upstream abstraction (no adapters) and never LightRAG."""
     layer = SRC_ROOT / "protocols"
-    _assert_layer_does_not_import(layer, PROTOCOL_FORBIDDEN)
+    _assert_layer_does_not_import(layer, PROTOCOL_FORBIDDEN, extra=(FORBIDDEN_MODULE_ROOT,))
 
 
 def test_evidence_do_not_import_downstream_layers() -> None:
@@ -253,3 +253,54 @@ def test_retrieval_do_not_import_infrastructure_layers() -> None:
     """retrieval/ is the application strategy layer: no adapters/tools/agent/lightrag."""
     layer = SRC_ROOT / "retrieval"
     _assert_layer_does_not_import(layer, RETRIEVAL_FORBIDDEN, extra=(FORBIDDEN_MODULE_ROOT,))
+
+
+# --------------------------------------------------------------------------- #
+# Stage 4 additions: Agent layer + Agent Model provider boundary
+# --------------------------------------------------------------------------- #
+
+AGENT_MODEL_DIR = SRC_ROOT / "adapters" / "agent_model"
+
+
+def test_agent_does_not_import_infrastructure_or_provider() -> None:
+    """agent/ never imports adapters / LightRAG / the provider SDK (openai)."""
+    layer = SRC_ROOT / "agent"
+    _assert_layer_does_not_import(layer, AGENT_FORBIDDEN)
+
+
+def _openai_imports_for_file(file: Path) -> list[tuple[int, str]]:
+    tree = ast.parse(file.read_text(encoding="utf-8"))
+    return [
+        (lineno, imported)
+        for lineno, imported in _iter_import_tuples(tree)
+        if imported == "openai" or imported.startswith("openai.")
+    ]
+
+
+def test_openai_imported_only_by_agent_model_adapter() -> None:
+    """The provider SDK (openai) is only imported inside adapters/agent_model."""
+    violations: list[str] = []
+    for file in _iter_python_files(SRC_ROOT):
+        try:
+            is_allowed = file.resolve().is_relative_to(AGENT_MODEL_DIR.resolve())
+        except AttributeError:  # pragma: no cover - py<3.9 fallback
+            is_allowed = str(file.resolve()).startswith(str(AGENT_MODEL_DIR.resolve()))
+        if is_allowed:
+            continue
+        for lineno, imported in _openai_imports_for_file(file):
+            rel = file.relative_to(PROJECT_ROOT).as_posix()
+            violations.append(f"{rel}:{lineno}: import {imported}")
+    assert violations == [], "\n".join(violations)
+
+
+def test_tool_registry_does_not_import_infrastructure() -> None:
+    """tools/registry.py manages AgentTool; it never imports adapters / LightRAG / openai."""
+    registry_file = SRC_ROOT / "tools" / "registry.py"
+    layer = SRC_ROOT / "tools"
+    _assert_layer_does_not_import(
+        layer, TOOLS_FORBIDDEN_ADAPTER, extra=(FORBIDDEN_MODULE_ROOT, "openai")
+    )
+    #: ensure the registry file itself does not import the agent model adapter
+    tree = ast.parse(registry_file.read_text(encoding="utf-8"))
+    for lineno, imported in _iter_import_tuples(tree):
+        assert "agent_model" not in imported, f"registry.py imports agent_model at {lineno}"

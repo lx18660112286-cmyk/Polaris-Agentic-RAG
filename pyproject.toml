@@ -11,6 +11,10 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
+    #: The Agent LLM adapter talks to DeepSeek over the OpenAI-compatible API.
+    #: Declared as a first-class runtime dependency (NOT via LightRAG's
+    #: transitive dep) because Stage 4's agent core needs it directly.
+    "openai>=1.50",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +53,10 @@ ignore = ["SIM105"]
 
 [tool.mypy]
 exclude = ["third_party/", ".venv/"]
-python_version = "3.10"
+#: Analysis runs at 3.12 so typed transitive stubs (numpy via openai) parse.
+#: The runtime/language target stays py3.10 -- that is enforced by ruff's
+#: `target-version = "py310"`, so mypy 3.12 cannot sneak 3.11+ syntax into src.
+python_version = "3.12"
 strict = true
 mypy_path = "src"
 
@@ -58,5 +65,13 @@ mypy_path = "src"
 # consume it inside adapters/lightrag, treating it as an untyped boundary.
 [[tool.mypy.overrides]]
 module = ["lightrag", "lightrag.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+# openai optionally pulls numpy; its stubs require Python 3.12 while the
+# project targets 3.10. numpy is a transitive runtime dep not used by our
+# own code, so we treat it as an untyped boundary.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
 follow_imports = "skip"
 ignore_missing_imports = true
