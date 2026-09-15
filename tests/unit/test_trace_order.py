@@ -190,6 +190,72 @@ async def test_trace_covers_retrieval_failure_with_error_event() -> None:
     assert types[-1] is TraceEventType.AGENT_COMPLETED
 
 
+async def test_tool_call_id_correlates_router_event() -> None:
+    """ROUTER_DECISION / TOOL_CALL_* must correlate via tool_call_id, not
+    event position (spec §20)."""
+    sink = InMemoryTraceSink()
+    port = FakeKnowledgeSearchPort()
+    model = ScriptedModel(
+        [
+            _make_tc('{"query":"Access token 有效期"}'),
+            AgentModelResponse(content="30 分钟", usage=None),
+        ]
+    )
+    orch = _build(port, model, sink)
+    result = await orch.run("Access token 有效期是多少？")
+
+    started = [e for e in sink.events if e.event_type is TraceEventType.TOOL_CALL_STARTED][0]
+    decision = [e for e in sink.events if e.event_type is TraceEventType.ROUTER_DECISION][0]
+    #: the model's call id flows through the event stream and into the step.
+    assert started.attributes["tool_call_id"] == "c1"
+    assert decision.attributes["tool_call_id"] == "c1"
+    assert len(result.routing_steps) == 1
+    assert result.routing_steps[0].tool_call_id == "c1"
+
+
+async def test_multiple_routing_events_are_preserved() -> None:
+    """Two knowledge searches produce two independent routing steps; the
+    primary decision stays the first (spec §6-§8)."""
+    sink = InMemoryTraceSink()
+    port = FakeKnowledgeSearchPort()
+    model = ScriptedModel(
+        [
+            _make_tc('{"query":"Access token 有效期"}'),
+            _make_tc('{"query":"refresh token 有效期"}'),
+            AgentModelResponse(content="30 分钟", usage=None),
+        ]
+    )
+    orch = _build(port, model, sink)
+    result = await orch.run("Access token 的有效期是多少？")
+
+    assert len(result.routing_steps) == 2
+    assert [s.step_index for s in result.routing_steps] == [0, 1]
+    assert result.routing_steps[0].tool_query == "Access token 有效期"
+    assert result.routing_steps[1].tool_query == "refresh token 有效期"
+    assert port.queries == ["Access token 有效期", "refresh token 有效期"]
+
+
+async def test_original_user_query_is_immutable() -> None:
+    """original_user_query is captured once at request start and never
+    mutated by later steps (spec §9)."""
+    sink = InMemoryTraceSink()
+    port = FakeKnowledgeSearchPort()
+    model = ScriptedModel(
+        [
+            _make_tc('{"query":"Access token 有效期"}'),
+            AgentModelResponse(content="done", usage=None),
+        ]
+    )
+    orch = _build(port, model, sink)
+    user_message = "  Access token 的有效期是多少？  "
+    result = await orch.run(user_message)
+
+    assert result.original_query == user_message
+    for step in result.routing_steps:
+        assert step.original_user_query == user_message
+    assert result.routing_steps[0].tool_query != user_message  #: rewrite happened
+
+
 async def test_trace_has_sequential_event_ids_per_trace() -> None:
     sink = InMemoryTraceSink()
     orch = _build(FakeKnowledgeSearchPort(), ScriptedModel([]), sink)

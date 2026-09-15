@@ -23,7 +23,7 @@ from typing import Any
 from dev_knowledge_agent.observability.models import TraceEvent, TraceEventType
 from dev_knowledge_agent.observability.sinks import TraceSink
 
-__all__ = ["TraceContext", "Tracer", "redact_attributes"]
+__all__ = ["ToolCallContext", "TraceContext", "Tracer", "redact_attributes"]
 
 #: attribute names whose value must never reach a sink (secrets, CoT).
 #: kept lowercase so an uppercase key (e.g. ``DEEPSEEK_API_KEY``) still
@@ -75,6 +75,30 @@ class TraceContext:
         cls._var.reset(token)
 
 
+class ToolCallContext:
+    """ContextVar holding the tool call id being executed, if any.
+
+    The orchestrator scopes each registry invocation so events emitted by
+    the tool itself (ROUTER_DECISION / RETRIEVAL_*) carry the same
+    ``tool_call_id`` as TOOL_CALL_STARTED / TOOL_CALL_COMPLETED (spec §20).
+    This keeps the correlation without touching the Tool contract.
+    """
+
+    _var: ContextVar[str | None] = ContextVar("dev_knowledge_tool_call_id", default=None)
+
+    @classmethod
+    def get(cls) -> str | None:
+        return cls._var.get()
+
+    @classmethod
+    def set(cls, tool_call_id: str) -> Token[str | None]:
+        return cls._var.set(tool_call_id)
+
+    @classmethod
+    def reset(cls, token: Token[str | None]) -> None:
+        cls._var.reset(token)
+
+
 class Tracer:
     """Emits TraceEvents into the registered sinks for the active trace."""
 
@@ -107,6 +131,25 @@ class Tracer:
             yield trace_id
         finally:
             self.end_trace()
+
+    @property
+    def current_tool_call_id(self) -> str | None:
+        """Tool call id currently executing (None outside a tool invocation)."""
+        return ToolCallContext.get()
+
+    @contextmanager
+    def tool_call_scope(self, tool_call_id: str) -> Iterator[None]:
+        """Bind ``tool_call_id`` for the duration of one tool invocation.
+
+        Every event emitted inside the scope -- including events from the
+        tool itself (ROUTER_DECISION / RETRIEVAL_*) -- can be correlated to
+        this tool call without relying on event-list position (spec §20).
+        """
+        token = ToolCallContext.set(tool_call_id)
+        try:
+            yield
+        finally:
+            ToolCallContext.reset(token)
 
     def emit(
         self,

@@ -14,8 +14,18 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dev_knowledge_agent.evaluation.evaluator import (
+    evaluate_router_component,
+    merge_router_component,
+)
 from dev_knowledge_agent.evaluation.metrics import compute_metrics
-from dev_knowledge_agent.evaluation.models import EvalCase, EvalCaseResult, EvalRunResult
+from dev_knowledge_agent.evaluation.models import (
+    EvalCase,
+    EvalCaseResult,
+    EvalRunResult,
+    RouterComponentRunResult,
+)
+from dev_knowledge_agent.retrieval.router import QueryRouter
 
 __all__ = ["EvaluationRunner", "load_dataset", "print_summary", "save_run_result"]
 
@@ -38,16 +48,24 @@ def load_dataset(path: str | Path) -> list[EvalCase]:
 
 
 class EvaluationRunner:
-    """Runs a dataset through ``run_case`` and aggregates the metrics."""
+    """Runs a dataset through ``run_case`` and aggregates the metrics.
+
+    When ``router`` is injected, the run also performs the Layer B Router
+    Component pass (each *original* dataset query routed straight through
+    QueryRouter, spec §3/§27) and merges those verdicts into the per-case
+    results so the summary reports layers B and C separately.
+    """
 
     def __init__(
         self,
         *,
         run_case: RunCase,
         dataset: str = "",
+        router: QueryRouter | None = None,
     ) -> None:
         self._run_case = run_case
         self._dataset = dataset
+        self._router = router
 
     async def run(
         self,
@@ -73,12 +91,20 @@ class EvaluationRunner:
                 case_result.status,
                 case_result.tool_called,
             )
+
+        #: Layer B: route the ORIGINAL queries, bypassing the Agent (spec §3).
+        router_component: RouterComponentRunResult | None = None
+        if self._router is not None and selected:
+            router_component = evaluate_router_component(selected, self._router)
+            results = merge_router_component(results, router_component.cases)
+
         metrics = compute_metrics(results)
         return EvalRunResult(
             dataset=self._dataset,
             run_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             sample_count=len(results),
             cases=results,
+            router_component=router_component,
             metrics=metrics,
         )
 
@@ -108,10 +134,20 @@ def print_summary(result: EvalRunResult) -> None:
         f"recall={_fmt_rate(m.tool_call_recall)})"
     )
     print(f"  false positives: {m.false_positive_count}  false negatives: {m.false_negative_count}")
-    print(f"Routing intent accuracy : {_fmt_rate(m.intent_accuracy)}")
     print(
-        f"Routing strategy accuracy: {_fmt_rate(m.strategy_accuracy)}  "
-        f"fallback rate: {_fmt_rate(m.fallback_rate)}"
+        f"[Router component] intent: {_fmt_rate(m.router_component_intent_accuracy)}  "
+        f"strategy: {_fmt_rate(m.router_component_strategy_accuracy)}  "
+        f"fallback: {_fmt_rate(m.router_component_fallback_rate)}"
+    )
+    print(
+        f"[Agentic retrieval] intent: {_fmt_rate(m.primary_intent_accuracy)}  "
+        f"strategy: {_fmt_rate(m.primary_strategy_accuracy)}  "
+        f"fallback: {_fmt_rate(m.routing_fallback_rate)}"
+    )
+    print(
+        f"  routing steps: {m.all_routing_steps_count}  "
+        f"query-rewrite drift: {m.query_rewrite_drift_count}  "
+        f"critical-term preservation: {_fmt_rate(m.critical_term_preservation_rate)}"
     )
     print(
         f"Expected source recall  : {_fmt_rate(m.expected_source_recall)}  "
@@ -128,9 +164,18 @@ def print_summary(result: EvalRunResult) -> None:
         f"Tokens (in/out/total)   : {m.total_input_tokens} / "
         f"{m.total_output_tokens} / {m.total_tokens}"
     )
+    per_case_tokens = f"{m.tokens_per_case:.1f}" if m.tokens_per_case is not None else None
+    print(f"  per-case tokens       : {_fmt(per_case_tokens)}")
+    model_calls = f"{m.model_calls_per_case:.2f}" if m.model_calls_per_case is not None else None
+    tool_calls = f"{m.tool_calls_per_case:.2f}" if m.tool_calls_per_case is not None else None
+    print(f"  per-case model/tool   : {_fmt(model_calls)} / {_fmt(tool_calls)}")
     print(f"Failure counts          : {m.failure_counts or '{}'}")
     print(f"Failed cases            : {m.failed_case_ids or '[]'}")
     print("=" * 60)
+
+
+def _fmt(value: str | None) -> str:
+    return value if value is not None else "n/a"
 
 
 def _fmt_rate(value: float | None) -> str:

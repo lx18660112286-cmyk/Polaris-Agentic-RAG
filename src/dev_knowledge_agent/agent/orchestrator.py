@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import ExitStack
 
 from dev_knowledge_agent.agent.errors import AgentMaxStepsExceededError
 from dev_knowledge_agent.agent.models import (
@@ -37,6 +38,7 @@ from dev_knowledge_agent.agent.models import (
 from dev_knowledge_agent.observability.models import FailureCategory, TraceEventType
 from dev_knowledge_agent.observability.tracer import Tracer
 from dev_knowledge_agent.protocols.agent_model import AgentModelPort
+from dev_knowledge_agent.retrieval.models import RoutingStep
 from dev_knowledge_agent.tools.errors import (
     InvalidToolArgumentsError,
     ToolError,
@@ -91,6 +93,7 @@ class AgentOrchestrator:
             AgentMessage(role=AgentRole.USER, content=user_message),
         ]
         records: list[ToolCallRecord] = []
+        routing_steps: list[RoutingStep] = []
         result_citations: list[str] = []
         seen_calls: set[str] = set()
         tool_calls_used = 0
@@ -99,7 +102,10 @@ class AgentOrchestrator:
 
         if self._tracer is not None:
             trace_id = self._tracer.start_trace()
-            self._emit(TraceEventType.AGENT_STARTED, query=user_message[:_TRACE_QUERY_CAP])
+            self._emit(
+                TraceEventType.AGENT_STARTED,
+                original_user_query=user_message[:_TRACE_QUERY_CAP],
+            )
 
         try:
             while True:
@@ -133,6 +139,8 @@ class AgentOrchestrator:
                         answer=self._answer_text(response),
                         citations=result_citations,
                         records=records,
+                        routing_steps=routing_steps,
+                        original_query=user_message,
                         steps=steps,
                     )
 
@@ -157,6 +165,8 @@ class AgentOrchestrator:
                             status=AgentStatus.TOOL_ERROR,
                             error=error,
                             records=records,
+                            routing_steps=routing_steps,
+                            original_query=user_message,
                             steps=steps,
                         )
                     tool_calls_used += 1
@@ -165,6 +175,7 @@ class AgentOrchestrator:
                         TraceEventType.TOOL_SELECTED,
                         name=tc.name,
                         arguments=tc.raw_arguments,
+                        tool_call_id=tc.id,
                     )
 
                     signature = _call_signature(tc.name, tc.raw_arguments)
@@ -192,6 +203,26 @@ class AgentOrchestrator:
                     )
                     records.append(record)
                     result_citations.extend(citations)
+                    if record.routing is not None:
+                        #: the query actually sent to retrieval: RagSearchTool
+                        #: surfaces it as a plain string on the result; other
+                        #: tools may not expose it at all.
+                        if isinstance(record.arguments, str):
+                            tool_query = record.arguments
+                        else:
+                            tool_query = str(record.arguments.get("query", ""))
+                        routing_steps.append(
+                            RoutingStep(
+                                step_index=len(routing_steps),
+                                tool_call_id=tc.id,
+                                original_user_query=user_message,
+                                tool_query=tool_query,
+                                intent=record.routing.intent,
+                                strategy=record.routing.strategy,
+                                reason=record.routing.reason,
+                                fallback_used=record.routing.fallback_used,
+                            )
+                        )
                     messages.append(self._tool_message(tc.id, content))
         except AgentMaxStepsExceededError as exc:
             self._emit(
@@ -204,6 +235,8 @@ class AgentOrchestrator:
                 status=AgentStatus.MAX_STEPS_EXCEEDED,
                 error=str(exc),
                 records=records,
+                routing_steps=routing_steps,
+                original_query=user_message,
                 steps=steps,
             )
         except Exception as exc:  # noqa: BLE001 - normalize model failures
@@ -217,6 +250,8 @@ class AgentOrchestrator:
                 status=AgentStatus.MODEL_ERROR,
                 error=f"{type(exc).__name__}: {exc}",
                 records=records,
+                routing_steps=routing_steps,
+                original_query=user_message,
                 steps=steps,
             )
         finally:
@@ -229,6 +264,8 @@ class AgentOrchestrator:
         trace_id: str | None,
         status: AgentStatus,
         records: list[ToolCallRecord],
+        routing_steps: list[RoutingStep],
+        original_query: str,
         steps: int,
         answer: str = "",
         error: str | None = None,
@@ -252,6 +289,8 @@ class AgentOrchestrator:
             steps=steps,
             error=error,
             trace_id=trace_id,
+            original_query=original_query,
+            routing_steps=routing_steps,
         )
 
     async def _run_tool(
@@ -261,12 +300,20 @@ class AgentOrchestrator:
         raw_arguments: str,
     ) -> tuple[str, ToolCallRecord, list[str]]:
         """Validate + invoke one tool call; return (model_content, record, citations)."""
-        del tool_call_id  #: not needed by the registry
         start = time.perf_counter()
-        self._emit(TraceEventType.TOOL_CALL_STARTED, name=name)
+        self._emit(
+            TraceEventType.TOOL_CALL_STARTED,
+            name=name,
+            tool_call_id=tool_call_id,
+        )
         record = ToolCallRecord(name=name, arguments={})
         citations: list[str] = []
         content = ""
+        #: bind tool_call_id for the duration of the invocation so events the
+        #: tool emits (ROUTER_DECISION / RETRIEVAL_*) correlate with this call.
+        exit_stack = ExitStack()
+        if self._tracer is not None:
+            exit_stack.enter_context(self._tracer.tool_call_scope(tool_call_id))
         try:
             outcome = await self._registry.invoke(name, raw_arguments)
             record.arguments = outcome.value.query if hasattr(outcome.value, "query") else {}
@@ -293,10 +340,13 @@ class AgentOrchestrator:
             record.result_status = "error"
             record.error = f"{type(exc).__name__}: {exc}"
             content = f"Tool invocation failed: {record.error}."
+        finally:
+            exit_stack.close()
         record.duration_ms = round((time.perf_counter() - start) * 1000.0, 3)
         self._emit(
             TraceEventType.TOOL_CALL_COMPLETED,
             name=name,
+            tool_call_id=tool_call_id,
             result_status=record.result_status,
             duration_ms=record.duration_ms,
             error=record.error,

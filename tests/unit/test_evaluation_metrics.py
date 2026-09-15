@@ -17,9 +17,14 @@ from dev_knowledge_agent.evaluation.metrics import (
     confusion_counts,
     detect_abstention,
     expected_source_recall,
+    router_component_metrics,
     source_recall,
 )
-from dev_knowledge_agent.evaluation.models import EvalCaseResult
+from dev_knowledge_agent.evaluation.models import (
+    EvalCaseResult,
+    RouterComponentResult,
+)
+from dev_knowledge_agent.observability.models import FailureCategory
 from dev_knowledge_agent.retrieval.models import RetrievalIntent, RetrievalStrategy
 
 # --------------------------------------------------------------------------- #
@@ -235,8 +240,14 @@ def _case_result(
     *,
     tool_called: bool,
     should_call_tool: bool = True,
-    intent_expected: bool = True,
-    strategy_expected: bool = True,
+    primary_intent_match: bool | None = True,
+    primary_strategy_match: bool | None = True,
+    router_intent_expected: bool | None = None,
+    router_strategy_expected: bool | None = None,
+    router_fallback: bool = False,
+    drift: bool = False,
+    preservation_rate: float | None = None,
+    failure_category: FailureCategory | None = None,
     source_recall_val: float | None = 1.0,
     grounded: bool | None = True,
     term_ok: bool | None = True,
@@ -244,6 +255,8 @@ def _case_result(
     expect_abstain: bool = False,
     abstained: bool = False,
     tokens: tuple[int, int, int] | None = (10, 20, 30),
+    model_calls: int | None = 2,
+    tool_call_count: int = 1,
 ) -> EvalCaseResult:
     return EvalCaseResult(
         case_id="c",
@@ -251,8 +264,13 @@ def _case_result(
         category="factual",
         should_call_tool=should_call_tool,
         tool_called=tool_called,
-        intent_match=True if intent_expected else None,
-        strategy_match=True if strategy_expected else None,
+        primary_intent_match=primary_intent_match,
+        primary_strategy_match=primary_strategy_match,
+        router_intent_match=router_intent_expected,
+        router_strategy_match=router_strategy_expected,
+        router_fallback_used=router_fallback,
+        query_rewrite_drift=drift,
+        critical_term_preservation_rate=preservation_rate,
         source_recall=source_recall_val,
         citation_grounded=grounded,
         citation_source_recall=source_recall_val,
@@ -263,6 +281,9 @@ def _case_result(
         input_tokens=tokens[0] if tokens else None,
         output_tokens=tokens[1] if tokens else None,
         total_tokens=tokens[2] if tokens else None,
+        model_calls=model_calls,
+        tool_call_count=tool_call_count,
+        failure_category=failure_category,
     )
 
 
@@ -274,13 +295,57 @@ def test_compute_metrics_aggregates() -> None:
     m = compute_metrics(results)
     assert m.sample_count == 2
     assert m.tool_selection_accuracy == 1.0
+    assert m.primary_intent_accuracy == 1.0
+    assert m.primary_strategy_accuracy == 1.0
+    assert m.routing_fallback_rate == 0.0
     assert m.expected_source_recall == 0.75
     assert m.citation_grounded_rate == 1.0
     assert m.answer_term_match_rate == 1.0
     assert m.latency_p50_ms == 100.0
     assert m.total_tokens == 60
+    assert m.tokens_per_case == 30.0
+    assert m.model_calls_per_case == 2.0
+    assert m.tool_calls_per_case == 1.0
     assert m.failure_counts == {}
     assert m.failed_case_ids == []
+
+
+def test_compute_metrics_layered_routing() -> None:
+    """Layer B vs Layer C are aggregated independently (Stage 5.1, §3/§7)."""
+    results = [
+        #: Layer B right, Layer C wrong -> only Layer B counts a hit
+        _case_result(
+            tool_called=True,
+            primary_intent_match=False,
+            primary_strategy_match=False,
+            router_intent_expected=True,
+            router_strategy_expected=True,
+            drift=True,
+            preservation_rate=0.0,
+            failure_category=FailureCategory.QUERY_REWRITE_INTENT_DRIFT,
+        ),
+        _case_result(
+            tool_called=True,
+            router_intent_expected=True,
+            router_strategy_expected=True,
+            preservation_rate=1.0,
+        ),
+    ]
+    m = compute_metrics(results)
+    assert m.router_component_intent_accuracy == 1.0
+    assert m.router_component_strategy_accuracy == 1.0
+    assert m.primary_intent_accuracy == 0.5
+    assert m.primary_strategy_accuracy == 0.5
+    assert m.query_rewrite_drift_count == 1
+    assert m.critical_term_preservation_rate == 0.5
+    #: NO falls into query-rewrite drift is a diagnostic, not a failed case.
+    assert "QUERY_REWRITE_INTENT_DRIFT" in m.failure_counts
+    assert m.failed_case_ids == []
+
+
+def test_compute_metrics_router_fallback_aggregated() -> None:
+    m = compute_metrics([_case_result(tool_called=True, router_fallback=True)])
+    assert m.router_component_fallback_rate == 1.0
 
 
 def test_compute_metrics_empty() -> None:
@@ -289,7 +354,7 @@ def test_compute_metrics_empty() -> None:
     assert m.tool_selection_accuracy is None
 
 
-def test_round_trip_intent_strategy() -> None:
+def test_round_trip_primary_intent_strategy() -> None:
     #: pure model-level sanity: enums survive serialization
     case = EvalCaseResult(
         case_id="r1",
@@ -298,12 +363,45 @@ def test_round_trip_intent_strategy() -> None:
         should_call_tool=True,
         tool_called=True,
         expected_intent=RetrievalIntent.RELATIONAL,
-        actual_intent=RetrievalIntent.RELATIONAL,
+        primary_intent=RetrievalIntent.RELATIONAL,
         expected_strategy=RetrievalStrategy.HYBRID,
-        actual_strategy=RetrievalStrategy.HYBRID,
+        primary_strategy=RetrievalStrategy.HYBRID,
     )
     restored = EvalCaseResult.model_validate_json(case.model_dump_json())
     assert restored.expected_intent is RetrievalIntent.RELATIONAL
-    assert restored.actual_intent is RetrievalIntent.RELATIONAL
+    assert restored.primary_intent is RetrievalIntent.RELATIONAL
     assert restored.expected_strategy is RetrievalStrategy.HYBRID
-    assert restored.actual_strategy is RetrievalStrategy.HYBRID
+    assert restored.primary_strategy is RetrievalStrategy.HYBRID
+
+
+def test_router_component_metrics() -> None:
+    results = [
+        RouterComponentResult(
+            case_id="a",
+            query="q1",
+            expected_intent=RetrievalIntent.FACTUAL,
+            actual_intent=RetrievalIntent.FACTUAL,
+            expected_strategy=RetrievalStrategy.FOCUSED,
+            actual_strategy=RetrievalStrategy.FOCUSED,
+            intent_match=True,
+            strategy_match=True,
+            fallback_used=False,
+        ),
+        RouterComponentResult(
+            case_id="b",
+            query="q2",
+            expected_intent=RetrievalIntent.OVERVIEW,
+            actual_intent=RetrievalIntent.FACTUAL,
+            expected_strategy=RetrievalStrategy.GLOBAL,
+            actual_strategy=RetrievalStrategy.FOCUSED,
+            intent_match=False,
+            strategy_match=False,
+            fallback_used=True,
+        ),
+    ]
+    summary = router_component_metrics(results)
+    assert summary.intent_accuracy == 0.5
+    assert summary.strategy_accuracy == 0.5
+    assert summary.fallback_rate == 0.5
+
+    assert router_component_metrics([]).intent_accuracy is None

@@ -44,11 +44,11 @@ def test_eval_case_result_encodes_actuals() -> None:
         category="factual",
         should_call_tool=True,
         tool_called=True,
-        actual_intent=RetrievalIntent.FACTUAL,
+        primary_intent=RetrievalIntent.FACTUAL,
         tool_selection_correct=True,
     )
     assert result.tool_selection_correct is True
-    assert result.actual_intent is RetrievalIntent.FACTUAL
+    assert result.primary_intent is RetrievalIntent.FACTUAL
 
 
 def test_eval_run_result_aggregates_cases_and_metrics() -> None:

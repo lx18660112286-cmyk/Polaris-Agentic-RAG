@@ -213,6 +213,39 @@ EvalCase.jsonl ──▶ EvaluationRunner(run_case=真实组合 Agent) ──▶
 - `NO_EVIDENCE` 与系统错误在失败分类中分离，评估不把业务结果当错误
 - 质量门禁：pytest（离线全绿 + 真实 E2E）、ruff、mypy、architecture guard 通过
 
+## Stage 5.1 — Evaluation Stabilization
+
+**状态**: ✅ 已交付（2026-09-16），详见 `docs/STAGE5_1_EVALUATION_STABILIZATION.md`。
+本阶段**不增加新能力**，修正 Stage 5 真实评估暴露的四类问题并完成三层归因。
+
+**Goal**: 评估稳定化 —— 取消 routing last-write-wins、分离 Router 自身 vs Agent 改写链路、
+使 rewrite drift 可观测、明确 Tool Selection mismatch。
+
+**Deliverables**:
+- `RoutingStep`（`retrieval/models.py`）：step_index / tool_call_id / original_user_query /
+  tool_query / intent / strategy / reason / fallback_used，一次请求多次路由全部保留
+- Primary Routing Decision：`EvalCaseResult` Layer C 取**首个** routing step，后续查询不覆盖
+- 三层度量拆分：Layer A Tool Selection / Layer B Router Component（原始 query 直连，不经 Agent）/
+  Layer C Agentic Retrieval（primary step），移除混合 `routing_accuracy`
+- Query Provenance：`original_user_query` 不可变 + `tool_query` 记录，trace 用 `tool_call_id` 关联
+- `critical_terms` 数据集标注 + `critical_term_preservation_rate` + `query_rewrite_drift`
+- `FailureCategory` 新增 `QUERY_REWRITE_INTENT_DRIFT` / `EVALUATION_AGGREGATION_ERROR`
+- prompt 改写保留策略（不强制逐字复述，禁止语义丢失；无 per-query hardcode）
+- 真实 37 例重跑 + before/after 报告（`STAGE5_1_EVALUATION_STABILIZATION.md`）
+
+```text
+Dataset Query
+ ├─ Layer B:  ──▶ QueryRouter.route() ──▶ 期望对照（不经 Agent / Tool / 改写）
+ └─ Layer C:  ──▶ Agent ──▶ tool_query ──▶ QueryRouter ──▶ primary RoutingStep（首决策）
+```
+
+**Acceptance Criteria**（已通过，见 `docs/STAGE5_1_EVALUATION_STABILIZATION.md` §8）:
+- routing steps 不再互相覆盖；primary=首决策；Router Component 与 Agentic Retrieval 分离归因
+- 37 例不变（仅加 metadata）；无 per-query hardcode；Citation/Abstention 无回归
+- 真实重跑：Tool Selection 97.3%（FN 2→1）、primary intent/strategy 89.7%/93.1%、drift 3、
+  critical-term 保留 96.7%、0 系统失败、p50/p95 3.45s/5.40s
+- 质量门禁：188 离线 + 6 集成全绿，ruff / mypy 通过；LightRAG submodule 02dcd8d 不变
+
 ## Stage 6 — External Tools
 
 **Goal**: 形成真正的 Multi-Tool Developer Agent。

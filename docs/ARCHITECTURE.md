@@ -219,6 +219,33 @@ EvalCase.jsonl ──▶ EvaluationRunner(run_case=真实组合 Agent) ──▶
   `.local/eval/eval-*.json` 可复现。详见 `docs/STAGE5_EVALUATION_OBSERVABILITY.md`、`docs/STAGE5_EVALUATION_REPORT.md`
   与 `ADR 0005`。
 
+### Evaluation 三层归因（Stage 5.1 新增）
+
+Stage 5 的单一 routing 混合指标在 Stage 5.1 拆为三层（spec §2/§21），禁止再把
+"QueryRouter 本身是否分类正确" 与 "Agent → tool_query → QueryRouter 整链是否正确" 混为一谈：
+
+```text
+Dataset Query
+ ├─ Layer B Router Component:  original query ──▶ QueryRouter.route() ──▶ 期望对照
+ │                                           （不经 Agent / Tool Calling / LLM rewrite）
+ └─ Layer C Agentic Retrieval:  user query ──▶ Agent ──▶ tool_query ──▶ QueryRouter
+                                                              └─▶ primary RoutingStep（首决策）
+```
+
+- `RoutingStep`（`retrieval/models.py`）保存一次请求的**全部**路由步骤
+  （`step_index / tool_call_id / original_user_query / tool_query / intent / strategy / reason /
+  fallback_used`）；**Primary Routing Decision = 首个 routing step**，取消 last-write-wins
+  （spec §6-§7）。
+- Query Provenance 由 `AgentOrchestrator` 保存：`original_user_query` 不可变，`tool_query` 是实际
+  发给 `search_dev_knowledge` 的查询（spec §9）；`RagSearchTool.search(query)` 契约不变（spec §10）。
+- Trace 事件用 `tool_call_id` 关联（`TOOL_CALL_STARTED / TOOL_CALL_COMPLETED / ROUTER_DECISION`），
+  不依赖事件列表位置（spec §20）。
+- 改写诊断：`critical_term_preservation_rate`（人工标注实体/错误码/约束保留率）+ `query_rewrite_drift`
+  （改写丢术语 或 intent flip）→ 归因 `QUERY_REWRITE_INTENT_DRIFT`，不再误归因为 Router 失败
+  （spec §12-§14/§18）。`FailureCategory` 另含 `EVALUATION_AGGREGATION_ERROR`（修复后真实运行应为 0）。
+- prompt 改写策略：保留 retrieval intent / 命名实体 / 错误码 / 数值约束 / 操作动作 / 问题范围，
+  允许合理改写、禁止语义丢失（spec §11）。详见 `docs/STAGE5_1_EVALUATION_STABILIZATION.md`。
+
 ## 本项目负责 vs LightRAG 负责
 
 本项目负责（Agentic 层）：

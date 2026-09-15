@@ -15,6 +15,8 @@ from dev_knowledge_agent.agent.models import AgentResult, AgentStatus
 from dev_knowledge_agent.evaluation.models import (
     EvalCaseResult,
     MetricSummary,
+    RouterComponentResult,
+    RouterComponentSummary,
 )
 from dev_knowledge_agent.observability.models import FailureCategory
 
@@ -31,6 +33,7 @@ __all__ = [
     "expected_source_recall",
     "mean_or_none",
     "percentile_or_none",
+    "router_component_metrics",
     "source_recall",
 ]
 
@@ -198,8 +201,32 @@ def classify_failure(result: AgentResult) -> FailureCategory | None:
     return None
 
 
+def router_component_metrics(results: list[RouterComponentResult]) -> RouterComponentSummary:
+    """Layer B aggregate: QueryRouter acting on the ORIGINAL query (spec §3/§27).
+
+    This is *policy consistency* against the project baseline expectation,
+    independent of the Agent / rewrite chain.
+    """
+    if not results:
+        return RouterComponentSummary()
+    intent_values = [r.intent_match for r in results if r.intent_match is not None]
+    strategy_values = [r.strategy_match for r in results if r.strategy_match is not None]
+    fallback_values = [float(r.fallback_used) for r in results]
+    return RouterComponentSummary(
+        intent_accuracy=mean_or_none(intent_values),
+        strategy_accuracy=mean_or_none(strategy_values),
+        fallback_rate=mean_or_none(fallback_values),
+    )
+
+
 def compute_metrics(results: list[EvalCaseResult]) -> MetricSummary:
-    """Aggregate a list of per-case results into one MetricSummary (§42)."""
+    """Aggregate a list of per-case results into one MetricSummary (§42).
+
+    Routing metrics are layered (Stage 5.1, spec §3/§7/§21): Layer B reads
+    the ``router_component_*` fields (original-query pass), Layer C reads the
+    primary routing step fields. There is no single blended "routing
+    accuracy" anymore.
+    """
     if not results:
         return MetricSummary()
 
@@ -207,10 +234,26 @@ def compute_metrics(results: list[EvalCaseResult]) -> MetricSummary:
     actual_tool = [r.tool_called for r in results]
     conf = confusion_counts(expected_tool, actual_tool)
 
-    intent_values = [r.intent_match for r in results if r.intent_match is not None]
-    strategy_values = [r.strategy_match for r in results if r.strategy_match is not None]
+    #: Layer B -- router component (merged original-query pass, if run)
+    router_intent_values = [
+        r.router_intent_match for r in results if r.router_intent_match is not None
+    ]
+    router_strategy_values = [
+        r.router_strategy_match for r in results if r.router_strategy_match is not None
+    ]
+    router_fallback_values = [float(r.router_fallback_used) for r in results]
+
+    #: Layer C -- agentic retrieval, primary step only
+    primary_intent_values = [
+        r.primary_intent_match for r in results if r.primary_intent_match is not None
+    ]
+    primary_strategy_values = [
+        r.primary_strategy_match for r in results if r.primary_strategy_match is not None
+    ]
     tool_called_cases = [r for r in results if r.tool_called]
-    fallback_values = [float(r.fallback_used) for r in tool_called_cases]
+    primary_fallback_values = [float(r.primary_fallback_used) for r in tool_called_cases]
+    all_steps = sum(len(r.routing_steps) for r in results)
+    drift_values = [r.query_rewrite_drift for r in results]
 
     source_values = [r.source_recall for r in results if r.source_recall is not None]
     grounded_values = [r.citation_grounded for r in results if r.citation_grounded is not None]
@@ -220,14 +263,28 @@ def compute_metrics(results: list[EvalCaseResult]) -> MetricSummary:
     term_values = [
         bool(r.answer_terms_all_present) for r in results if r.answer_terms_all_present is not None
     ]
+    preservation_values = [
+        r.critical_term_preservation_rate
+        for r in results
+        if r.critical_term_preservation_rate is not None
+    ]
     latency_values = [r.latency_ms for r in results if r.latency_ms is not None]
 
-    #: failures (exclude NO_EVIDENCE from "failed" -- it is a business result).
+    #: failures; NO_EVIDENCE / QUERY_REWRITE_INTENT_DRIFT are business or
+    #: diagnostic outcomes, not system errors -- excluded from failed_case_ids.
+    business_categories = {
+        FailureCategory.NO_EVIDENCE.value,
+        FailureCategory.QUERY_REWRITE_INTENT_DRIFT.value,
+    }
     failures = [r for r in results if r.failure_category is not None]
-    hard_failures = [r for r in failures if r.failure_category is not FailureCategory.NO_EVIDENCE]
     failure_counts: dict[str, int] = Counter(
         r.failure_category.value for r in failures if r.failure_category is not None
     )
+    hard_failures = [
+        r
+        for r in failures
+        if r.failure_category is not None and r.failure_category.value not in business_categories
+    ]
 
     total_input = sum(r.input_tokens for r in results if r.input_tokens is not None)
     total_output = sum(r.output_tokens for r in results if r.output_tokens is not None)
@@ -241,20 +298,35 @@ def compute_metrics(results: list[EvalCaseResult]) -> MetricSummary:
         tool_call_recall=round(conf.recall, 4) if conf.recall is not None else None,
         false_positive_count=conf.fp,
         false_negative_count=conf.fn,
-        intent_accuracy=mean_or_none(intent_values),
-        strategy_accuracy=mean_or_none(strategy_values),
-        fallback_rate=mean_or_none(fallback_values),
+        #: Layer B
+        router_component_intent_accuracy=mean_or_none(router_intent_values),
+        router_component_strategy_accuracy=mean_or_none(router_strategy_values),
+        router_component_fallback_rate=mean_or_none(router_fallback_values),
+        #: Layer C
+        primary_intent_accuracy=mean_or_none(primary_intent_values),
+        primary_strategy_accuracy=mean_or_none(primary_strategy_values),
+        all_routing_steps_count=all_steps,
+        routing_fallback_rate=mean_or_none(primary_fallback_values),
+        query_rewrite_drift_count=sum(1 for d in drift_values if d),
         expected_source_recall=mean_or_none(source_values),
         no_evidence_rate=mean_or_none([float(r.no_evidence) for r in results]),
         citation_grounded_rate=mean_or_none(grounded_values),
         citation_source_recall=mean_or_none(citation_recall_values),
         answer_term_match_rate=mean_or_none(term_values),
         abstention_accuracy=abstention_accuracy(results),
+        critical_term_preservation_rate=mean_or_none(preservation_values),
         latency_p50_ms=percentile_or_none(latency_values, 50),
         latency_p95_ms=percentile_or_none(latency_values, 95),
         total_input_tokens=total_input if any_tokens else None,
         total_output_tokens=total_output if any_tokens else None,
         total_tokens=total_all if any_tokens else None,
+        tokens_per_case=mean_or_none(
+            [float(r.total_tokens) for r in results if r.total_tokens is not None]
+        ),
+        model_calls_per_case=mean_or_none(
+            [float(r.model_calls) for r in results if r.model_calls is not None]
+        ),
+        tool_calls_per_case=mean_or_none([float(r.tool_call_count) for r in results]),
         failure_counts=dict(failure_counts),
         failed_case_ids=[r.case_id for r in hard_failures],
     )

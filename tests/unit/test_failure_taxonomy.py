@@ -76,6 +76,9 @@ def test_failure_categories_cover_the_taxonomy() -> None:
         "ROUTING_FALLBACK",
         "RETRIEVAL_ERROR",
         "CITATION_ERROR",
+        #: Stage 5.1 diagnostics (spec §19/§32)
+        "QUERY_REWRITE_INTENT_DRIFT",
+        "EVALUATION_AGGREGATION_ERROR",
     }
     actual = {c.value for c in FailureCategory}
     assert expected == actual

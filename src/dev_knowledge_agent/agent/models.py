@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from dev_knowledge_agent.retrieval.models import RoutingDecision
+from dev_knowledge_agent.retrieval.models import RoutingDecision, RoutingStep
 
 __all__ = [
     "AgentRole",
@@ -116,6 +116,14 @@ class AgentResult(BaseModel):
     error: str | None = None
     #: Correlation id shared by Agent -> Tool -> Router -> Adapter (spec §24).
     trace_id: str | None = None
+    #: Immutable query provenance (Stage 5.1, spec §9): the exact user message
+    #: the request started with. Never mutated by the Agent loop.
+    original_query: str = ""
+    #: Every routing decision produced during this request, in order. A later
+    #: step never overwrites an earlier one (Stage 5 last-write-wins artifact
+    #: removed, spec §6-§8). Primary = the first step (first successful
+    #: knowledge-search call).
+    routing_steps: list[RoutingStep] = Field(default_factory=list)
 
 
 def _extract_citations(value: Any) -> list[str]:

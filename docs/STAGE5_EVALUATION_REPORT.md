@@ -1,5 +1,9 @@
 # Stage 5 — Evaluation Report（真实评估运行）
 
+> ⚠️ **Stage 5.1 更新**：下文 §2/§3.2 的 routing 指标（46.7% / 60.0%）为 **last-write-wins 混合口径**，
+> 已在 Stage 5.1 中被三层模型取代（`routing_steps[]` + primary decision + Router Component 直连）。
+> 修复与 before/after 数据见 `docs/STAGE5_1_EVALUATION_STABILIZATION.md`；本文保留为历史基线。
+
 > 运行方式：`scripts/run_evaluation.py`（完整 37 例，`DEEPSEEK_API_KEY` 注入环境变量）。
 > 完整逐 case 明细：`.local/eval/eval-20260915-182020.json`；逐事件 trace：`.local/traces/<trace_id>.jsonl`。
 > 每次运行均可复现；本报告是快照式结论。

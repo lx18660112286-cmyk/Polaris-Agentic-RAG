@@ -48,6 +48,12 @@ class FailureCategory(str, Enum):
 
     ``NO_EVIDENCE`` is a *normal business outcome* (honest abstention), not a
     system error -- evaluation must not lump it in with the ERROR categories.
+    ``QUERY_REWRITE_INTENT_DRIFT`` (Stage 5.1): the Router routes the *original*
+    user query correctly, but the Agent's rewritten tool query loses the
+    retrieval signal -- this is an Agent -> tool-query interface problem, NOT a
+    Router failure. ``EVALUATION_AGGREGATION_ERROR`` guards the evaluation
+    harness itself: after the Stage 5.1 routing-step fix, a real run must
+    never produce one (spec §19).
     """
 
     MODEL_ERROR = "MODEL_ERROR"
@@ -60,6 +66,8 @@ class FailureCategory(str, Enum):
     ROUTING_FALLBACK = "ROUTING_FALLBACK"
     RETRIEVAL_ERROR = "RETRIEVAL_ERROR"
     CITATION_ERROR = "CITATION_ERROR"
+    QUERY_REWRITE_INTENT_DRIFT = "QUERY_REWRITE_INTENT_DRIFT"
+    EVALUATION_AGGREGATION_ERROR = "EVALUATION_AGGREGATION_ERROR"
 
 
 class TraceEvent(BaseModel):

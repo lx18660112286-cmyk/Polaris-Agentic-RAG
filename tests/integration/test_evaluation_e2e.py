@@ -112,9 +112,18 @@ def test_evaluation_e2e(tmp_path: Path) -> None:
     #: grounded with the 30-minute fact and the api_auth.md citation.
     f1 = by_id["f1"]
     assert f1.tool_called is True
-    assert f1.actual_intent is not None and f1.actual_intent.value == "factual"
+    assert f1.primary_intent is not None and f1.primary_intent.value == "factual"
     assert f1.answer_terms_all_present is True, f1.answer
     assert any("api_auth" in c for c in f1.citations), f1.citations
+
+    #: Stage 5.1 provenance triple (§29): original_user_query, tool_query and
+    #: the routing decision coexist on every knowledge-search step.
+    assert f1.routing_steps, "knowledge-search cases must surface routing steps"
+    for step in f1.routing_steps:
+        assert step.original_user_query == f1.query
+        assert step.tool_query, "tool_query must be captured"
+        assert step.intent is not None
+    assert f1.primary_intent is not None
 
     #: t1 -- terminology routing + incident_runbook.md source.
     t1 = by_id["t1"]

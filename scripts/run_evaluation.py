@@ -85,7 +85,13 @@ async def main() -> int:
         result = await built.orchestrator.run(case.query)
         return build_case_result(case, result, sink.events)
 
-    runner = EvaluationRunner(run_case=run_case, dataset=str(args.dataset))
+    runner = EvaluationRunner(
+        run_case=run_case,
+        dataset=str(args.dataset),
+        #: Layer B: route the ORIGINAL queries through the same Router the
+        #: tool uses, bypassing the Agent rewrite chain (spec §3).
+        router=built.rag_tool.router,
+    )
 
     try:
         await adapter.initialize()

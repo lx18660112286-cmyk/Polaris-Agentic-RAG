@@ -114,9 +114,25 @@ class RagSearchTool:
     def input_schema(self) -> type[RagSearchInput]:
         return RagSearchInput
 
+    @property
+    def router(self) -> QueryRouter:
+        """The router this tool delegates retrieval decisions to.
+
+        Read-only access for component-level evaluation (Stage 5.1 spec §3):
+        routing the *original* dataset query directly, bypassing the Agent
+        and tool calling, to isolate QueryRouter quality.
+        """
+        return self._router
+
     def _emit(self, event_type: TraceEventType, **attributes: object) -> None:
-        if self._tracer is not None:
-            self._tracer.emit(event_type, **attributes)  # type: ignore[arg-type]
+        if self._tracer is None:
+            return
+        #: attach the executing tool call id so ROUTER_DECISION / RETRIEVAL
+        #: events correlate with TOOL_CALL_* without position guessing (§20).
+        tool_call_id = self._tracer.current_tool_call_id
+        if tool_call_id is not None:
+            attributes.setdefault("tool_call_id", tool_call_id)
+        self._tracer.emit(event_type, **attributes)  # type: ignore[arg-type]
 
     async def invoke(self, input_: RagSearchInput) -> RagSearchResult:
         """Validate the query, route it, run the port, and normalize the result."""

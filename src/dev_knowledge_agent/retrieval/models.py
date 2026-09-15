@@ -21,6 +21,7 @@ __all__ = [
     "RetrievalIntent",
     "RetrievalPlan",
     "RoutingDecision",
+    "RoutingStep",
 ]
 
 
@@ -76,6 +77,26 @@ class RoutingDecision(BaseModel):
     inspect the intent & strategy and observe fallback usage.
     """
 
+    intent: RetrievalIntent
+    strategy: RetrievalStrategy
+    reason: str = ""
+    fallback_used: bool = False
+
+
+class RoutingStep(BaseModel):
+    """One routing decision produced during a single Agent request (Stage 5.1).
+
+    An Agent request can run the knowledge tool several times; each executed
+    search that surfaces a ``RoutingDecision`` is recorded as one step so a
+    later step can never overwrite an earlier one (Stage 5 ``last-write-wins``
+    artifact is gone). ``original_user_query`` is immutable provenance: it is
+    the user's message at request start, never mutated by the Agent.
+    """
+
+    step_index: int
+    tool_call_id: str
+    original_user_query: str
+    tool_query: str
     intent: RetrievalIntent
     strategy: RetrievalStrategy
     reason: str = ""
