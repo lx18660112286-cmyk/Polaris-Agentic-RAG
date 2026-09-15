@@ -37,6 +37,27 @@ KB_FILES = [
 ]
 
 
+def _load_env_file(env_path: Path) -> None:
+    """Load ``KEY=VALUE`` pairs from a local .env file into the environment.
+
+    Only sets variables that are not already set in ``os.environ`` (existing
+    env vars take precedence), so an explicit ``DEEPSEEK_API_KEY`` export is
+    never overridden. Kept dependency-free: a minimal KEY=VALUE parser (no
+    quoting/expansion) is enough for the secrets this project keeps in .env.
+    """
+    if not env_path.is_file():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Run the live Agent REPL.")
     parser.add_argument(
@@ -45,6 +66,9 @@ async def main() -> None:
         help="trace Agent events and print them after each query.",
     )
     args = parser.parse_args()
+
+    #: Load local secrets from the gitignored .env (existing env vars win).
+    _load_env_file(PROJECT_ROOT / ".env")
 
     if not os.environ.get("DEEPSEEK_API_KEY"):
         print("DEEPSEEK_API_KEY not set; cannot run the live Agent.", file=sys.stderr)

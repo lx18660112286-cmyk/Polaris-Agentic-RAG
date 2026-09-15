@@ -246,27 +246,61 @@ Dataset Query
   critical-term 保留 96.7%、0 系统失败、p50/p95 3.45s/5.40s
 - 质量门禁：188 离线 + 6 集成全绿，ruff / mypy 通过；LightRAG submodule 02dcd8d 不变
 
-## Stage 6 — External Tools
+## Project Status — Feature Complete
 
-**Goal**: 形成真正的 Multi-Tool Developer Agent。
-
-**Deliverables**:
-- GitTool
-- LogTool
-- DatabaseTool
-- WebTool
+当前 **Scope Freeze**。项目已完成核心产品交付，不再新增产品能力。
 
 ```text
-                 ┌─ RagSearchTool
-                 │
-Agent ─ ToolRegistry ─ GitTool
-                 │
-                 ├─ LogTool
-                 │
-                 ├─ DatabaseTool
-                 │
-                 └─ WebTool
+Stage 0  ✅  Clean Bootstrap + LightRAG Source Integration
+Stage 1  ✅  Native LightRAG E2E Baseline
+Stage 2  ✅  RagSearchTool + Evidence Contract + LightRAGAdapter
+Stage 3  ✅  Retrieval Strategy + Query Router
+Stage 4  ✅  Single Agent Orchestrator
+Stage 5  ✅  Evaluation + Observability
+Stage 5.1 ✅  Evaluation Stabilization
+
+Project Status:  FEATURE COMPLETE  →  FEATURE FREEZE
 ```
 
-**Acceptance Criteria**:
-- 多 Tool 场景下 Agent 能编排不同工具解决真实开发者任务
+> 原「Stage 6 — External Tools（GitTool / LogTool / DatabaseTool / WebTool）」**不再作为正式实施计划**
+> （spec：Final Stage §2）。项目最终定位是：
+>
+> ```text
+> A production-style Agentic RAG reference project built on LightRAG as the retrieval kernel.
+> ```
+>
+> 它既不是 Developer General Agent，也不是 Multi-Tool Agent Platform。
+
+## Project Complete 验收（Final Stage 计划 §34）
+
+- [x] 无新增产品功能（Scope Freeze）
+- [x] README 最终版（重写为项目入口）
+- [x] `docs/PROJECT_SUMMARY.md`（面试导向技术总结）
+- [x] `docs/INTERVIEW_GUIDE.md`（作者面试准备）
+- [x] Roadmap 止于 Stage 5.1
+- [x] 架构文档一致（ARCHITECTURE / README / ADR）
+- [x] Demo Flow 已文档化（4 组 query + --debug）
+- [x] 可复现性已验证（clone → venv → editable install → .env → Ollama bge-m3 → tests → agent → eval）
+- [x] Known Limitations 如实记录（不隐藏失败 case）
+- [x] 真实评估结果原样保留（Activity baseline，37 例）
+- [x] 无 benchmark gaming
+- [x] 质量门禁全绿（pytest / ruff check / ruff format / mypy / integration）
+- [x] integration tests 全绿
+- [x] LightRAG submodule 不变（`02dcd8df754ec312b807bdd4d67737b97bc38679`）
+- [x] 仓库 clean（`.local/` `.env` traces 不提交）
+- [x] 最终 commit + `v1.0.0` release tag
+
+## Optional Future Work（Not implemented by design）
+
+以下均为**当前项目范围之外**的可选后续方向，**不构成 Roadmap 承诺**：
+
+| 方向 | 说明 | 备注 |
+|---|---|---|
+| Reranker evaluation | 引入 reranker 评估其对检索质量的影响 | 需要真实 rerank provider |
+| Alternative RAG kernel | 用其他 RAG 内核替换 LightRAG | 验证 Port/Adapter 隔离是否可替换供应商 |
+| MCP exposure | 将 `RagSearchTool` 暴露为 MCP server | Agentic 能力外部化 |
+| External developer tools | GitTool / LogTool / DatabaseTool / WebTool | 原 Stage 6，不在当前交付 |
+| Production deployment | Docker / 服务化 / 鉴权 / 多租户 | 依赖运维基建 |
+| Larger knowledge base | 更大规模知识库与批量评估回归 | 需要更多文档与评估用例 |
+
+全部标注 **Not implemented by design.**
