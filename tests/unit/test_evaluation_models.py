@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dev_knowledge_agent.evaluation.models import (
+from polaris_agentic_rag.evaluation.models import (
     EvalCase,
     EvalCaseResult,
     EvalRunResult,
     MetricSummary,
 )
-from dev_knowledge_agent.retrieval.models import RetrievalIntent, RetrievalStrategy
+from polaris_agentic_rag.retrieval.models import RetrievalIntent, RetrievalStrategy
 
 
 def test_eval_case_round_trip_json() -> None:

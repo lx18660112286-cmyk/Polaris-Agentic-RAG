@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from dev_knowledge_agent.config.settings import Settings
+from polaris_agentic_rag.config.settings import Settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -24,17 +24,17 @@ REQUIRED_DIRS = (
     "examples/knowledge_base",
     "scripts",
     "src",
-    "src/dev_knowledge_agent",
-    "src/dev_knowledge_agent/config",
-    "src/dev_knowledge_agent/protocols",
-    "src/dev_knowledge_agent/adapters",
-    "src/dev_knowledge_agent/adapters/lightrag",
-    "src/dev_knowledge_agent/tools",
-    "src/dev_knowledge_agent/evidence",
-    "src/dev_knowledge_agent/router",
-    "src/dev_knowledge_agent/agent",
-    "src/dev_knowledge_agent/evaluation",
-    "src/dev_knowledge_agent/observability",
+    "src/polaris_agentic_rag",
+    "src/polaris_agentic_rag/config",
+    "src/polaris_agentic_rag/protocols",
+    "src/polaris_agentic_rag/adapters",
+    "src/polaris_agentic_rag/adapters/lightrag",
+    "src/polaris_agentic_rag/tools",
+    "src/polaris_agentic_rag/evidence",
+    "src/polaris_agentic_rag/router",
+    "src/polaris_agentic_rag/agent",
+    "src/polaris_agentic_rag/evaluation",
+    "src/polaris_agentic_rag/observability",
     "tests",
     "tests/architecture",
     "tests/smoke",
@@ -49,9 +49,9 @@ EXAMPLE_KNOWLEDGE_FILES = (
 
 
 def test_package_importable() -> None:
-    import dev_knowledge_agent  # noqa: F401
+    import polaris_agentic_rag  # noqa: F401
 
-    assert dev_knowledge_agent.__version__  # type: ignore[attr-defined]
+    assert polaris_agentic_rag.__version__  # type: ignore[attr-defined]
 
 
 def test_settings_instantiable() -> None:

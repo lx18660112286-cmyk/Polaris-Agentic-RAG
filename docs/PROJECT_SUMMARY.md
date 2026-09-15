@@ -1,10 +1,10 @@
-# Dev Knowledge Agent — Project Summary
+# Polaris Agentic RAG — Project Summary
 
 > 面试导向的技术总结（约 2–4 页），围绕 **Agentic RAG** 而非 generic Agent framework。
 > 澄清对比与逐题准备见 [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md)；架构与各阶段详见
 > [../README.md](../README.md) 与 `docs/adr/`。
 
-一句话：**Dev Knowledge Agent is an Agentic RAG system** that dynamically decides whether retrieval
+一句话：**Polaris Agentic RAG is an Agentic RAG system** that dynamically decides whether retrieval
 is required, plans how retrieval should be executed, normalizes LightRAG kernel output into
 structured evidence, and performs grounded synthesis or abstention with layered evaluation and
 observability.

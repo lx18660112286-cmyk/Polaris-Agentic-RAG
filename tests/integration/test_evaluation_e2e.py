@@ -16,18 +16,18 @@ from pathlib import Path
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.adapter import LightRAGAdapter
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.adapter import LightRAGAdapter
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     env_vars_available,
     ingest_documents,
 )
-from dev_knowledge_agent.bootstrap import build_agent
-from dev_knowledge_agent.config.settings import get_settings
-from dev_knowledge_agent.evaluation.evaluator import build_case_result
-from dev_knowledge_agent.evaluation.models import EvalCase
-from dev_knowledge_agent.evaluation.runner import EvaluationRunner
-from dev_knowledge_agent.observability.sinks import InMemoryTraceSink
-from dev_knowledge_agent.observability.tracer import Tracer
+from polaris_agentic_rag.bootstrap import build_agent
+from polaris_agentic_rag.config.settings import get_settings
+from polaris_agentic_rag.evaluation.evaluator import build_case_result
+from polaris_agentic_rag.evaluation.models import EvalCase
+from polaris_agentic_rag.evaluation.runner import EvaluationRunner
+from polaris_agentic_rag.observability.sinks import InMemoryTraceSink
+from polaris_agentic_rag.observability.tracer import Tracer
 
 pytestmark = pytest.mark.integration
 
@@ -64,7 +64,7 @@ def test_evaluation_e2e(tmp_path: Path) -> None:
     """Build -> init -> ingest -> run 4 labeled cases -> aggregate metrics."""
     _skip_unless_credentials()
     workdir = tmp_path / "lightrag_stage5_eval"
-    from dev_knowledge_agent.adapters.lightrag.settings import LightRAGAdapterSettings
+    from polaris_agentic_rag.adapters.lightrag.settings import LightRAGAdapterSettings
 
     settings = LightRAGAdapterSettings(
         working_dir=workdir,

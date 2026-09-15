@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from dev_knowledge_agent.tools.errors import (
+from polaris_agentic_rag.tools.errors import (
     DuplicateToolError,
     InvalidToolArgumentsError,
     UnknownToolError,
 )
-from dev_knowledge_agent.tools.protocol import AgentTool, ToolDefinition
-from dev_knowledge_agent.tools.registry import ToolRegistry
+from polaris_agentic_rag.tools.protocol import AgentTool, ToolDefinition
+from polaris_agentic_rag.tools.registry import ToolRegistry
 
 
 class EchoInput(BaseModel):

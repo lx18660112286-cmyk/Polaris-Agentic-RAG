@@ -19,13 +19,13 @@ from pathlib import Path
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.adapter import LightRAGAdapter
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.adapter import LightRAGAdapter
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     env_vars_available,
     ingest_documents,
 )
-from dev_knowledge_agent.bootstrap import build_agent
-from dev_knowledge_agent.config.settings import get_settings
+from polaris_agentic_rag.bootstrap import build_agent
+from polaris_agentic_rag.config.settings import get_settings
 
 pytestmark = pytest.mark.integration
 
@@ -46,7 +46,7 @@ def test_agent_e2e(tmp_path: Path) -> None:
     _skip_unless_credentials()
     workdir = tmp_path / "lightrag_stage4"
 
-    from dev_knowledge_agent.adapters.lightrag.settings import LightRAGAdapterSettings
+    from polaris_agentic_rag.adapters.lightrag.settings import LightRAGAdapterSettings
 
     settings = LightRAGAdapterSettings(
         working_dir=workdir,

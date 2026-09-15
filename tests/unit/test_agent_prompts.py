@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from dev_knowledge_agent.agent.prompts import build_system_prompt
+from polaris_agentic_rag.agent.prompts import build_system_prompt
 
 
 class _Tool:

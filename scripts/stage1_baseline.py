@@ -20,7 +20,7 @@ import sys
 import time
 from pathlib import Path
 
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     QUERY_MODES,
     build_lightrag,
     env_vars_available,

@@ -5,7 +5,7 @@
 
 ## Context
 
-Dev Knowledge Agent 是一个面向开发者知识场景的 Agentic RAG Application。
+Polaris Agentic RAG 是一个面向开发者知识场景的 Agentic RAG Application。
 
 整个项目的核心产品抽象是 Agent-facing 的知识检索能力 `RagSearchTool`，而不是某个具体 RAG 框架。Agent 未来只感知 Tool / query / evidence / citation，不应感知 `LightRAG`、`QueryParam`、`local/global/hybrid`、`top_k` 等 Kernel 特定概念。
 
@@ -23,7 +23,7 @@ Dev Knowledge Agent 是一个面向开发者知识场景的 Agentic RAG Applicat
 - **The Agent does not depend on LightRAG directly.**
 - **Agent-facing retrieval capability will be exposed through `RagSearchTool`.**
 - **`RagSearchTool` depends on an application-level search abstraction**（`KnowledgeSearchPort`）。
-- **LightRAG-specific behavior is isolated inside `src/dev_knowledge_agent/adapters/lightrag/`.**
+- **LightRAG-specific behavior is isolated inside `src/polaris_agentic_rag/adapters/lightrag/`.**
 
 最终依赖方向：
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dev_knowledge_agent.agent.models import AgentResult, AgentStatus, ToolCallRecord
-from dev_knowledge_agent.evaluation.metrics import classify_failure
-from dev_knowledge_agent.observability.models import FailureCategory
+from polaris_agentic_rag.agent.models import AgentResult, AgentStatus, ToolCallRecord
+from polaris_agentic_rag.evaluation.metrics import classify_failure
+from polaris_agentic_rag.observability.models import FailureCategory
 
 
 def test_no_failure_for_success() -> None:

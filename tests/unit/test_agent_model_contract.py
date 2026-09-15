@@ -5,13 +5,13 @@ from __future__ import annotations
 import inspect
 from typing import get_type_hints
 
-from dev_knowledge_agent.agent.models import (
+from polaris_agentic_rag.agent.models import (
     AgentMessage,
     AgentModelResponse,
     AgentToolCall,
 )
-from dev_knowledge_agent.protocols.agent_model import AgentModelPort
-from dev_knowledge_agent.tools.protocol import ToolDefinition
+from polaris_agentic_rag.protocols.agent_model import AgentModelPort
+from polaris_agentic_rag.tools.protocol import ToolDefinition
 
 
 class FakeAgentModel:
@@ -55,7 +55,7 @@ def test_response_can_carry_tool_call() -> None:
 
 
 def test_agent_message_roles() -> None:
-    from dev_knowledge_agent.agent.models import AgentRole
+    from polaris_agentic_rag.agent.models import AgentRole
 
     system = AgentMessage(role=AgentRole.SYSTEM, content="sys")
     tool = AgentMessage(role=AgentRole.TOOL, content="res", tool_call_id="call_1")

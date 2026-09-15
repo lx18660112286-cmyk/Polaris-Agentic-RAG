@@ -3,7 +3,7 @@
 These tests use Python AST scanning to enforce the project's most
 important dependency boundaries:
 
-* Only ``src/dev_knowledge_agent/adapters/lightrag/`` may import LightRAG.
+* Only ``src/polaris_agentic_rag/adapters/lightrag/`` may import LightRAG.
 * No LightRAG type may be re-exported upward from the adapter package.
 * ``tools/`` may not import ``adapters/`` (Tool depends on the Port, not
   the concrete Adapter).
@@ -18,7 +18,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_ROOT = PROJECT_ROOT / "src" / "dev_knowledge_agent"
+SRC_ROOT = PROJECT_ROOT / "src" / "polaris_agentic_rag"
 ALLOWED_IMPORT_DIR = SRC_ROOT / "adapters" / "lightrag"
 
 FORBIDDEN_MODULE_ROOT = "lightrag"
@@ -160,7 +160,7 @@ def test_adapter_init_does_not_re_export_lightrag_types() -> None:
 
 def test_adapter_package_imports_are_isolated() -> None:
     """Importing the adapter package must not leak LightRAG types upward."""
-    from dev_knowledge_agent.adapters import lightrag as lightrag_adapter
+    from polaris_agentic_rag.adapters import lightrag as lightrag_adapter
 
     assert not hasattr(lightrag_adapter, "LightRAG")
     assert not hasattr(lightrag_adapter, "QueryParam")
@@ -170,28 +170,28 @@ def test_adapter_package_imports_are_isolated() -> None:
 # Stage 2 additions: keep the layers decoupled
 # --------------------------------------------------------------------------- #
 
-#: forbidden module prefixes, relative to dev_knowledge_agent.*
-TOOLS_FORBIDDEN_ADAPTER = ("dev_knowledge_agent.adapters",)
+#: forbidden module prefixes, relative to polaris_agentic_rag.*
+TOOLS_FORBIDDEN_ADAPTER = ("polaris_agentic_rag.adapters",)
 
-PROTOCOL_FORBIDDEN = ("dev_knowledge_agent.adapters",)
+PROTOCOL_FORBIDDEN = ("polaris_agentic_rag.adapters",)
 
 EVIDENCE_FORBIDDEN = (
-    "dev_knowledge_agent.adapters",
-    "dev_knowledge_agent.tools",
-    "dev_knowledge_agent.agent",
+    "polaris_agentic_rag.adapters",
+    "polaris_agentic_rag.tools",
+    "polaris_agentic_rag.agent",
 )
 
 #: ``retrieval/`` is the application strategy layer: it must never depend on
 #: infrastructure (LightRAG / adapters / tools / agent).
 RETRIEVAL_FORBIDDEN = (
-    "dev_knowledge_agent.adapters",
-    "dev_knowledge_agent.tools",
-    "dev_knowledge_agent.agent",
+    "polaris_agentic_rag.adapters",
+    "polaris_agentic_rag.tools",
+    "polaris_agentic_rag.agent",
 )
 
 #: ``agent/`` may depend on protocols / tools / evidence but never on
 #: infrastructure (adapters / LightRAG) nor a provider SDK (openai).
-AGENT_FORBIDDEN = ("dev_knowledge_agent.adapters", "openai", FORBIDDEN_MODULE_ROOT)
+AGENT_FORBIDDEN = ("polaris_agentic_rag.adapters", "openai", FORBIDDEN_MODULE_ROOT)
 
 
 def _iter_import_tuples(tree: ast.Module):
@@ -314,7 +314,7 @@ def test_tool_registry_does_not_import_infrastructure() -> None:
 #: never depend on infrastructure (LightRAG / adapters) nor a provider SDK
 #: (openai). The provider boundary lives in the adapters (spec §58/§59).
 EVAL_OBS_FORBIDDEN = (
-    "dev_knowledge_agent.adapters",
+    "polaris_agentic_rag.adapters",
     FORBIDDEN_MODULE_ROOT,
     "openai",
 )

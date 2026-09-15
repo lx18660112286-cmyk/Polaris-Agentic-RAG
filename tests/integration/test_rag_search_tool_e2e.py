@@ -18,13 +18,13 @@ from pathlib import Path
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.adapter import LightRAGAdapter
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.adapter import LightRAGAdapter
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     env_vars_available,
     ingest_documents,
 )
-from dev_knowledge_agent.retrieval.router import QueryRouter
-from dev_knowledge_agent.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
+from polaris_agentic_rag.retrieval.router import QueryRouter
+from polaris_agentic_rag.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
 
 pytestmark = pytest.mark.integration
 
@@ -61,7 +61,7 @@ def test_rag_search_tool_real_e2e(tmp_path: Path) -> None:
         #: argument. We pass a unique token derived from tmp_path to avoid cross-test
         #: duplicate detection when running both Stage 1 and Stage 2 integration
         #: tests in the same pytest session.
-        from dev_knowledge_agent.adapters.lightrag.settings import LightRAGAdapterSettings
+        from polaris_agentic_rag.adapters.lightrag.settings import LightRAGAdapterSettings
 
         settings = LightRAGAdapterSettings(
             working_dir=workdir,

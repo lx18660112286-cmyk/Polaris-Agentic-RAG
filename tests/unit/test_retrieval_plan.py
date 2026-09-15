@@ -6,7 +6,7 @@ and that every application strategy maps to a real intents/strategy value.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.retrieval.models import (
+from polaris_agentic_rag.retrieval.models import (
     RetrievalIntent,
     RetrievalPlan,
     RetrievalStrategy,

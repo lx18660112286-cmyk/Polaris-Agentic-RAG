@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev_knowledge_agent.adapters.lightrag.source_probe import (
+from polaris_agentic_rag.adapters.lightrag.source_probe import (
     SOURCE_DIR_MARKER,
     probe_lightrag_source,
 )

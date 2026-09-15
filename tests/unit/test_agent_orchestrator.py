@@ -6,17 +6,17 @@ from types import SimpleNamespace
 
 from pydantic import BaseModel
 
-from dev_knowledge_agent.agent.models import (
+from polaris_agentic_rag.agent.models import (
     AgentMessage,
     AgentModelResponse,
     AgentRole,
     AgentStatus,
     AgentToolCall,
 )
-from dev_knowledge_agent.agent.orchestrator import AgentOrchestrator
-from dev_knowledge_agent.protocols.agent_model import AgentModelPort
-from dev_knowledge_agent.tools.protocol import ToolDefinition
-from dev_knowledge_agent.tools.registry import ToolRegistry
+from polaris_agentic_rag.agent.orchestrator import AgentOrchestrator
+from polaris_agentic_rag.protocols.agent_model import AgentModelPort
+from polaris_agentic_rag.tools.protocol import ToolDefinition
+from polaris_agentic_rag.tools.registry import ToolRegistry
 
 SYSTEM = "You are Dev Knowledge Agent."
 

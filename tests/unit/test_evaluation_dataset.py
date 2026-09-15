@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev_knowledge_agent.evaluation.runner import load_dataset
-from dev_knowledge_agent.retrieval.models import RetrievalIntent, RetrievalStrategy
+from polaris_agentic_rag.evaluation.runner import load_dataset
+from polaris_agentic_rag.retrieval.models import RetrievalIntent, RetrievalStrategy
 
 DATASET = (
     Path(__file__).resolve().parents[2] / "examples" / "evaluation" / "dev_knowledge_eval.jsonl"

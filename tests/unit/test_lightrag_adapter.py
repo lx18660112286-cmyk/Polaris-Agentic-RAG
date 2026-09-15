@@ -11,15 +11,15 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.adapter import LightRAGAdapter
-from dev_knowledge_agent.adapters.lightrag.settings import LightRAGAdapterSettings
-from dev_knowledge_agent.evidence.errors import (
+from polaris_agentic_rag.adapters.lightrag.adapter import LightRAGAdapter
+from polaris_agentic_rag.adapters.lightrag.settings import LightRAGAdapterSettings
+from polaris_agentic_rag.evidence.errors import (
     InvalidKnowledgeQueryError,
     KnowledgeSearchExecutionError,
     KnowledgeSearchNotReadyError,
 )
-from dev_knowledge_agent.evidence.models import EvidenceAvailability
-from dev_knowledge_agent.retrieval.models import (
+from polaris_agentic_rag.evidence.models import EvidenceAvailability
+from polaris_agentic_rag.retrieval.models import (
     RetrievalIntent,
     RetrievalPlan,
     RetrievalStrategy,

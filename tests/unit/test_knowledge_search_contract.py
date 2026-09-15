@@ -6,9 +6,9 @@ without any LightRAG dependency) and that it does not expose vendor types.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.evidence.models import KnowledgeSearchResult
-from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
-from dev_knowledge_agent.retrieval.models import RetrievalPlan
+from polaris_agentic_rag.evidence.models import KnowledgeSearchResult
+from polaris_agentic_rag.protocols.knowledge_search import KnowledgeSearchPort
+from polaris_agentic_rag.retrieval.models import RetrievalPlan
 
 
 class FakePort:

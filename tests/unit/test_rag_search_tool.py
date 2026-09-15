@@ -7,12 +7,12 @@ control and dependency inversion.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.evidence.errors import InvalidKnowledgeQueryError
-from dev_knowledge_agent.evidence.models import EvidenceAvailability, KnowledgeSearchResult
-from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
-from dev_knowledge_agent.retrieval.models import RetrievalPlan
-from dev_knowledge_agent.retrieval.router import QueryRouter
-from dev_knowledge_agent.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
+from polaris_agentic_rag.evidence.errors import InvalidKnowledgeQueryError
+from polaris_agentic_rag.evidence.models import EvidenceAvailability, KnowledgeSearchResult
+from polaris_agentic_rag.protocols.knowledge_search import KnowledgeSearchPort
+from polaris_agentic_rag.retrieval.models import RetrievalPlan
+from polaris_agentic_rag.retrieval.router import QueryRouter
+from polaris_agentic_rag.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
 
 
 class FakeKnowledgeSearchPort(KnowledgeSearchPort):
@@ -120,7 +120,7 @@ def test_input_rejects_empty_query() -> None:
 
 
 def test_tool_exports_metadata() -> None:
-    from dev_knowledge_agent.tools.rag_search import TOOL_DESCRIPTION, TOOL_NAME
+    from polaris_agentic_rag.tools.rag_search import TOOL_DESCRIPTION, TOOL_NAME
 
     tool = RagSearchTool(search_port=FakeKnowledgeSearchPort(), router=QueryRouter())
     assert tool.name == TOOL_NAME

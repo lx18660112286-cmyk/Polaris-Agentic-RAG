@@ -8,28 +8,28 @@ stream ordering WITHOUT any LLM.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.agent.models import (
+from polaris_agentic_rag.agent.models import (
     AgentMessage,
     AgentModelResponse,
     AgentStatus,
     AgentToolCall,
 )
-from dev_knowledge_agent.agent.orchestrator import AgentOrchestrator
-from dev_knowledge_agent.evidence.models import (
+from polaris_agentic_rag.agent.orchestrator import AgentOrchestrator
+from polaris_agentic_rag.evidence.models import (
     EvidenceAvailability,
     KnowledgeSearchResult,
 )
-from dev_knowledge_agent.observability.models import TraceEventType
-from dev_knowledge_agent.observability.sinks import InMemoryTraceSink
-from dev_knowledge_agent.observability.tracer import Tracer
-from dev_knowledge_agent.protocols.agent_model import AgentModelPort
-from dev_knowledge_agent.retrieval.router import QueryRouter
-from dev_knowledge_agent.tools.protocol import ToolDefinition
-from dev_knowledge_agent.tools.rag_search import (
+from polaris_agentic_rag.observability.models import TraceEventType
+from polaris_agentic_rag.observability.sinks import InMemoryTraceSink
+from polaris_agentic_rag.observability.tracer import Tracer
+from polaris_agentic_rag.protocols.agent_model import AgentModelPort
+from polaris_agentic_rag.retrieval.router import QueryRouter
+from polaris_agentic_rag.tools.protocol import ToolDefinition
+from polaris_agentic_rag.tools.rag_search import (
     AgentRagSearchTool,
     RagSearchTool,
 )
-from dev_knowledge_agent.tools.registry import ToolRegistry
+from polaris_agentic_rag.tools.registry import ToolRegistry
 
 SYSTEM = "You are Dev Knowledge Agent."
 

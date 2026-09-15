@@ -1,6 +1,6 @@
-# Dev Knowledge Agent
+#  Polaris Agentic RAG
 
-**Dev Knowledge Agent is an Agentic RAG application built on top of LightRAG.**
+**Polaris Agentic RAG is an Agentic RAG application built on top of LightRAG.**
 
 LightRAG is treated as the **retrieval kernel** rather than exposed directly to the
 orchestration layer. The system **dynamically decides whether retrieval is required**,
@@ -9,7 +9,7 @@ Evidence Contract**, and performs **grounded answer synthesis or abstention**.
 
 一句话定位：
 
-> Dev Knowledge Agent is an Agentic RAG system that dynamically decides whether retrieval is
+> Polaris Agentic RAG is an Agentic RAG system that dynamically decides whether retrieval is
 > required, plans how retrieval should be executed, normalizes LightRAG kernel output into
 > structured evidence, and performs grounded synthesis or abstention with layered evaluation
 > and observability.
@@ -24,7 +24,7 @@ grounded answer synthesis、abstention、layered evaluation 和 observability** 
 
 ## Overview
 
-面向开发者知识场景（部署文档、鉴权、事故排查 Runbook 等）的 Agentic RAG 应用。Agentic 的核心
+ Agentic RAG 应用。Agentic 的核心
 不是「工具多」，而是**运行时决策**：先判断要不要检索，再规划怎么检索，最后基于证据回答或拒答。
 
 ## Why Agentic RAG
@@ -87,10 +87,10 @@ User Query → Retrieval Invocation → Retrieval Planning → Dynamic Retrieval
 
 ### 两个 Agentic RAG 决策层（必须区分）
 
-| 决策 | 问题 | 负责者 |
-|---|---|---|
+| 决策                                    | 问题                                                         | 负责者                                               |
+| ------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
 | **Decision A — Retrieval Invocation** | *Does this user query require knowledge retrieval?*（要不要检索） | Agentic RAG Orchestrator（native function calling） |
-| **Decision B — Retrieval Planning** | *How should retrieval be performed?*（怎么检索） | QueryRouter → RetrievalPlan |
+| **Decision B — Retrieval Planning**   | *How should retrieval be performed?*（怎么检索）                 | QueryRouter → RetrievalPlan                       |
 
 > Agentic RAG 将「是否需要检索（Retrieval Invocation）」与「如何检索（Retrieval Planning）」
 > 拆成两个独立决策层。
@@ -177,13 +177,13 @@ Graph Retrieval / Hybrid Retrieval / Reranker / Context Builder）。
 评估**分层**，而非只给最终答案打分；全部指标**确定性**（混淆矩阵 / 集合 recall / 术语包含），
 **无 LLM 裁判**，结果可在 `.local/eval/eval-*.json` 复现。
 
-| Layer | 衡量 | 关键指标 |
-|---|---|---|
-| **Layer A — Retrieval Invocation** | *Should retrieval be triggered?* | Accuracy / Precision / Recall / FP / FN |
-| **Layer B — Retrieval Planning** | Router 自身对原始查询分类 | Router Intent Accuracy / Strategy Accuracy / Fallback Rate |
-| **Layer C — Agentic Retrieval Execution** | Orchestrator+改写查询经 Router 的首决策 | Primary Intent / Strategy / Rewrite Drift / Critical Term Preservation |
-| **Layer D — Retrieval / Evidence** | 检索是否命中期望来源 | Expected Source Recall / Evidence Availability / Citation Source Recall |
-| **Layer E — Grounded Synthesis** | 合成是否接地、是否诚实弃答 | Answer Term Match / Citation Groundedness / Abstention Accuracy |
+| Layer                                     | 衡量                               | 关键指标                                                                    |
+| ----------------------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| **Layer A — Retrieval Invocation**        | *Should retrieval be triggered?* | Accuracy / Precision / Recall / FP / FN                                 |
+| **Layer B — Retrieval Planning**          | Router 自身对原始查询分类                 | Router Intent Accuracy / Strategy Accuracy / Fallback Rate              |
+| **Layer C — Agentic Retrieval Execution** | Orchestrator+改写查询经 Router 的首决策   | Primary Intent / Strategy / Rewrite Drift / Critical Term Preservation  |
+| **Layer D — Retrieval / Evidence**        | 检索是否命中期望来源                       | Expected Source Recall / Evidence Availability / Citation Source Recall |
+| **Layer E — Grounded Synthesis**          | 合成是否接地、是否诚实弃答                    | Answer Term Match / Citation Groundedness / Abstention Accuracy         |
 
 > 旧的单一混合「routing accuracy」已移除；Layer B 直连 Router（不经 Agent），Layer C 走
 > Authentic→改写→Router 链路，二者不再混为一谈。
@@ -199,19 +199,19 @@ Retrieval Invocation 结果、改写前后查询、Retrieval Plan、引用、延
 
 **37 evaluation cases**（9 类，`examples/evaluation/dev_knowledge_eval.jsonl`），真实 baseline：
 
-| Metric | Value |
-|---|---:|
-| Retrieval Invocation Accuracy | **97.3%** |
-| Retrieval Invocation Precision | 100.0% |
-| Retrieval Invocation Recall | 96.7%（FP=0, FN=1） |
-| Router Intent Accuracy | **90.0%** |
-| Router Strategy Accuracy | **93.3%** |
-| Primary Agentic Intent / Strategy | 89.7% / 93.1% |
-| Citation Groundedness | **100.0%** |
-| Abstention Accuracy | **100.0%** |
-| Expected Source Recall | 96.0% |
-| Latency p50 / p95 | 3453.0 / 5401.8 ms |
-| Tokens per case | 4260.7 |
+| Metric                            | Value              |
+| --------------------------------- | ------------------:|
+| Retrieval Invocation Accuracy     | **97.3%**          |
+| Retrieval Invocation Precision    | 100.0%             |
+| Retrieval Invocation Recall       | 96.7%（FP=0, FN=1）  |
+| Router Intent Accuracy            | **90.0%**          |
+| Router Strategy Accuracy          | **93.3%**          |
+| Primary Agentic Intent / Strategy | 89.7% / 93.1%      |
+| Citation Groundedness             | **100.0%**         |
+| Abstention Accuracy               | **100.0%**         |
+| Expected Source Recall            | 96.0%              |
+| Latency p50 / p95                 | 3453.0 / 5401.8 ms |
+| Tokens per case                   | 4260.7             |
 
 > 不隐藏失败 case：FN=1（f3）、Router 规则边界 3 例、query rewrite drift 3 例，均如实记录在
 > [docs/STAGE5_EVALUATION_REPORT.md](docs/STAGE5_EVALUATION_REPORT.md) 与
@@ -221,13 +221,13 @@ Retrieval Invocation 结果、改写前后查询、Retrieval Plan、引用、延
 
 基于现有 `scripts/run_agent.py`，不新增功能：
 
-| Demo | 期望展示 |
-|---|---|
-| **1**：`你好` | **Retrieval Invocation = false**（0 次检索，直接回答） |
-| **2**：`Access token 的有效期是多少？` | **Retrieval Invocation = true** → FACTUAL → FOCUSED → `[api_auth.md]` → grounded answer |
-| **3**：`Order Service 发布后出现大量 5xx，应该如何排查并判断是否回滚？` | Retrieval → MULTI_DOCUMENT → 多来源 → grounded synthesis |
-| **4**：`Billing Service 使用什么数据库？` | Retrieval → **insufficient evidence → abstain**（拒绝幻觉） |
-| **--debug** | 展示 `trace_id` / retrieval invocation / tool query / retrieval intent / strategy / citations / latency。**不输出 chain-of-thought** |
+| Demo                                             | 期望展示                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| **1**：`你好`                                       | **Retrieval Invocation = false**（0 次检索，直接回答）                                                                                   |
+| **2**：`Access token 的有效期是多少？`                    | **Retrieval Invocation = true** → FACTUAL → FOCUSED → `[api_auth.md]` → grounded answer                                        |
+| **3**：`Order Service 发布后出现大量 5xx，应该如何排查并判断是否回滚？` | Retrieval → MULTI_DOCUMENT → 多来源 → grounded synthesis                                                                          |
+| **4**：`Billing Service 使用什么数据库？`                 | Retrieval → **insufficient evidence → abstain**（拒绝幻觉）                                                                          |
+| **--debug**                                      | 展示 `trace_id` / retrieval invocation / tool query / retrieval intent / strategy / citations / latency。**不输出 chain-of-thought** |
 
 ## Quick Start
 
@@ -279,7 +279,7 @@ python scripts/run_evaluation.py
 │   ├── knowledge_base/            # deployment / api_auth / incident_runbook / service_overview
 │   └── evaluation/dev_knowledge_eval.jsonl   # 37 例评估数据集
 ├── scripts/  run_agent.py / run_evaluation.py / stage1_baseline.py
-├── src/dev_knowledge_agent/
+├── src/polaris_agentic_rag/
 │   ├── config/  protocols/         # knowledge_search.py / agent_model.py（端口）
 │   ├── adapters/  lightrag/（唯一 import LightRAG）/ agent_model/deepseek.py（唯一 import openai）
 │   ├── retrieval/  evidence/  tools/  agent/
@@ -294,13 +294,13 @@ python scripts/run_evaluation.py
 
 ## Architecture Decisions
 
-| ADR | 主题 |
-|---|---|
-| [0001](docs/adr/0001-lightrag-as-rag-kernel.md) | LightRAG is Kernel, not Agent framework |
+| ADR                                                        | 主题                                      |
+| ---------------------------------------------------------- | --------------------------------------- |
+| [0001](docs/adr/0001-lightrag-as-rag-kernel.md)            | LightRAG is Kernel, not Agent framework |
 | [0002](docs/adr/0002-evidence-contract-and-search-port.md) | Evidence Contract + KnowledgeSearchPort |
-| [0003](docs/adr/0003-retrieval-routing.md) | Retrieval Routing（确定性规则） |
-| [0004](docs/adr/0004-single-agent-tool-calling.md) | Single Tool Calling Orchestrator |
-| [0005](docs/adr/0005-evaluation-and-observability.md) | Evaluation + Observability |
+| [0003](docs/adr/0003-retrieval-routing.md)                 | Retrieval Routing（确定性规则）                |
+| [0004](docs/adr/0004-single-agent-tool-calling.md)         | Single Tool Calling Orchestrator        |
+| [0005](docs/adr/0005-evaluation-and-observability.md)      | Evaluation + Observability              |
 
 ## Known Limitations
 

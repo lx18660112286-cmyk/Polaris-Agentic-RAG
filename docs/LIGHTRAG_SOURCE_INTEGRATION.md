@@ -51,7 +51,7 @@ python -m pip install -e ".[dev]"
 
 ```bash
 python -c "from lightrag import LightRAG; from lightrag import QueryParam; import lightrag, pathlib; p=pathlib.Path(lightrag.__file__).resolve(); print(p)"
-# → D:\myself-prove\Dev Knowledge Agent\third_party\LightRAG\lightrag\__init__.py
+# → D:\myself-prove\Polaris Agentic RAG\third_party\LightRAG\lightrag\__init__.py
 ```
 
 Window path 验收（正反斜杠适配）：
@@ -67,7 +67,7 @@ python -c "import lightrag, pathlib, os; p=pathlib.Path(lightrag.__file__).resol
 
 ## 5. Source Probe（21 项必查结果）
 
-probe 实现在 `src/dev_knowledge_agent/adapters/lightrag/source_probe.py`。
+probe 实现在 `src/polaris_agentic_rag/adapters/lightrag/source_probe.py`。
 以下均来自 pinned commit `02dcd8df`：
 
 | Capability | Source Location | Current Finding | Future Integration |

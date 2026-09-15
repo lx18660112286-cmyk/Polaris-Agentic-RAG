@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dev_knowledge_agent.adapters.lightrag.source_resolver import SourceResolver
-from dev_knowledge_agent.evidence.models import SourceResolutionStatus
+from polaris_agentic_rag.adapters.lightrag.source_resolver import SourceResolver
+from polaris_agentic_rag.evidence.models import SourceResolutionStatus
 
 
 def test_resolves_unique_basename(tmp_path: Path) -> None:

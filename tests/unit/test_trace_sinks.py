@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 
-from dev_knowledge_agent.observability.models import (
+from polaris_agentic_rag.observability.models import (
     TraceEvent,
     TraceEventType,
 )
-from dev_knowledge_agent.observability.sinks import (
+from polaris_agentic_rag.observability.sinks import (
     InMemoryTraceSink,
     JsonlTraceSink,
 )
-from dev_knowledge_agent.observability.tracer import Tracer
+from polaris_agentic_rag.observability.tracer import Tracer
 
 
 def test_in_memory_sink_collects_events() -> None:
@@ -87,7 +87,7 @@ def test_jsonl_sink_redacts_secrets_on_disk(tmp_path) -> None:
 
 
 def test_sink_never_receives_chain_of_thought() -> None:
-    from dev_knowledge_agent.observability.tracer import redact_attributes
+    from polaris_agentic_rag.observability.tracer import redact_attributes
 
     sanitized = redact_attributes({"reasoning_content": "model secret thoughts"})
     TraceEvent(

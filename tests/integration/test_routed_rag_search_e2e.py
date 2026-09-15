@@ -18,14 +18,14 @@ from pathlib import Path
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.adapter import LightRAGAdapter
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.adapter import LightRAGAdapter
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     env_vars_available,
     ingest_documents,
 )
-from dev_knowledge_agent.retrieval.models import RetrievalIntent
-from dev_knowledge_agent.retrieval.router import QueryRouter
-from dev_knowledge_agent.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
+from polaris_agentic_rag.retrieval.models import RetrievalIntent
+from polaris_agentic_rag.retrieval.router import QueryRouter
+from polaris_agentic_rag.tools.rag_search import RagSearchInput, RagSearchStatus, RagSearchTool
 
 pytestmark = pytest.mark.integration
 
@@ -52,7 +52,7 @@ def test_routed_rag_search_real_e2e(tmp_path: Path) -> None:
     workdir = tmp_path / "lightrag_stage3"
 
     async def scenario() -> dict:
-        from dev_knowledge_agent.adapters.lightrag.settings import LightRAGAdapterSettings
+        from polaris_agentic_rag.adapters.lightrag.settings import LightRAGAdapterSettings
 
         settings = LightRAGAdapterSettings(
             working_dir=workdir,

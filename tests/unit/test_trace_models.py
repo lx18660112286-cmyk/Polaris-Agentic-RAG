@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dev_knowledge_agent.observability.models import (
+from polaris_agentic_rag.observability.models import (
     Trace,
     TraceEvent,
     TraceEventType,
 )
-from dev_knowledge_agent.observability.sinks import InMemoryTraceSink
-from dev_knowledge_agent.observability.tracer import Tracer, redact_attributes
+from polaris_agentic_rag.observability.sinks import InMemoryTraceSink
+from polaris_agentic_rag.observability.tracer import Tracer, redact_attributes
 
 
 def test_trace_event_serializes_to_json() -> None:

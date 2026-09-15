@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from dev_knowledge_agent.adapters.lightrag.native_baseline import (
+from polaris_agentic_rag.adapters.lightrag.native_baseline import (
     build_lightrag,
     env_vars_available,
     ingest_documents,

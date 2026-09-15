@@ -11,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from dev_knowledge_agent.retrieval.models import (
+from polaris_agentic_rag.retrieval.models import (
     RetrievalIntent,
     RetrievalPlan,
     RetrievalStrategy,
 )
-from dev_knowledge_agent.retrieval.router import QueryRouter
+from polaris_agentic_rag.retrieval.router import QueryRouter
 
 FIXTURES = json.loads(
     (Path(__file__).resolve().parents[1] / "fixtures" / "routing_cases.json").read_text(

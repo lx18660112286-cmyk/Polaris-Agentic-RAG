@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dev-knowledge-agent"
+name = "polaris-agentic-rag"
 version = "0.1.0"
-description = "Agentic RAG Application for developer knowledge scenarios based on LightRAG kernel"
+description = "Polaris Agentic RAG Application based on LightRAG kernel"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

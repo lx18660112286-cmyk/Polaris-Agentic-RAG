@@ -1,4 +1,4 @@
-# Dev Knowledge Agent — Interview Guide
+# Polaris Agentic RAG — Interview Guide
 
 > 作者本人面试准备。非营销话术，全部基于项目**真实实现**。对每个问题给出「答案 + 项目里对应在哪」，
 > 便于一边讲一边引用代码/文档。技术总结见 [PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)。

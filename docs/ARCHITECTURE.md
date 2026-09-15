@@ -1,4 +1,4 @@
-# Dev Knowledge Agent — Architecture
+# Polaris Agentic RAG — Architecture
 
 > **Agentic RAG Application**，面向开发者知识场景，构建在 **LightRAG** 检索内核之上。
 > 核心产品抽象是 `RagSearchTool`（Agentic RAG knowledge retrieval capability boundary）。
@@ -97,7 +97,7 @@ LightRAGAdapter
 LightRAG
 ```
 
-- 生产代码中只有 `src/dev_knowledge_agent/adapters/lightrag/` 允许 import LightRAG（由 `tests/architecture/test_boundaries.py` 用 AST 强制）。
+- 生产代码中只有 `src/polaris_agentic_rag/adapters/lightrag/` 允许 import LightRAG（由 `tests/architecture/test_boundaries.py` 用 AST 强制）。
 - 禁止从 Adapter 向上 re-export `LightRAG` / `QueryParam`。
 - 禁止 Tool API 接收 LightRAG-specific 类型。
 - **Stage 2 / Stage 3 已落地**：`KnowledgeSearchPort` 暴露 `async search(query, *, plan=None) -> KnowledgeSearchResult`；

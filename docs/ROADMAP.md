@@ -1,4 +1,4 @@
-# Dev Knowledge Agent — Roadmap
+# Polaris Agentic RAG — Roadmap
 
 项目分阶段演进。每一阶段必须包含：Goal、Deliverables、Non-goals、Acceptance Criteria。
 

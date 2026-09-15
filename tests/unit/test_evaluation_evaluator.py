@@ -7,19 +7,19 @@ loss; Layer B router verdicts are merged via ``merge_router_component``.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.agent.models import AgentResult, AgentStatus, ToolCallRecord
-from dev_knowledge_agent.evaluation.evaluator import (
+from polaris_agentic_rag.agent.models import AgentResult, AgentStatus, ToolCallRecord
+from polaris_agentic_rag.evaluation.evaluator import (
     build_case_result,
     evaluate_router_component,
     merge_router_component,
 )
-from dev_knowledge_agent.evaluation.models import EvalCase
-from dev_knowledge_agent.retrieval.models import (
+from polaris_agentic_rag.evaluation.models import EvalCase
+from polaris_agentic_rag.retrieval.models import (
     RetrievalIntent,
     RetrievalStrategy,
     RoutingStep,
 )
-from dev_knowledge_agent.retrieval.router import QueryRouter
+from polaris_agentic_rag.retrieval.router import QueryRouter
 
 
 def _routing_intent() -> RetrievalIntent:
@@ -150,7 +150,7 @@ def test_critical_term_preservation_and_drift() -> None:
     assert case_result.critical_term_preservation_rate == 0.0
     assert case_result.query_rewrite_drift is True
     #: drift is attributed as an Agent -> tool-query interface problem (§32).
-    from dev_knowledge_agent.observability.models import FailureCategory
+    from polaris_agentic_rag.observability.models import FailureCategory
 
     assert case_result.failure_category is FailureCategory.QUERY_REWRITE_INTENT_DRIFT
 

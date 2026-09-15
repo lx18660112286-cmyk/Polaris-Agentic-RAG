@@ -20,19 +20,19 @@ import os
 import sys
 from pathlib import Path
 
-from dev_knowledge_agent.adapters.lightrag.native_baseline import ingest_documents
-from dev_knowledge_agent.bootstrap import build_agent
-from dev_knowledge_agent.config.settings import get_settings
-from dev_knowledge_agent.evaluation.evaluator import build_case_result
-from dev_knowledge_agent.evaluation.models import EvalCase, EvalCaseResult
-from dev_knowledge_agent.evaluation.runner import (
+from polaris_agentic_rag.adapters.lightrag.native_baseline import ingest_documents
+from polaris_agentic_rag.bootstrap import build_agent
+from polaris_agentic_rag.config.settings import get_settings
+from polaris_agentic_rag.evaluation.evaluator import build_case_result
+from polaris_agentic_rag.evaluation.models import EvalCase, EvalCaseResult
+from polaris_agentic_rag.evaluation.runner import (
     EvaluationRunner,
     load_dataset,
     print_summary,
     save_run_result,
 )
-from dev_knowledge_agent.observability.sinks import InMemoryTraceSink, JsonlTraceSink
-from dev_knowledge_agent.observability.tracer import Tracer
+from polaris_agentic_rag.observability.sinks import InMemoryTraceSink, JsonlTraceSink
+from polaris_agentic_rag.observability.tracer import Tracer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 WORKDIR = PROJECT_ROOT / ".local" / "eval_live"

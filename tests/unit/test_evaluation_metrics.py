@@ -7,8 +7,8 @@ verdicts computed by ``evaluation/metrics.py``.
 
 from __future__ import annotations
 
-from dev_knowledge_agent.agent.models import AgentResult, AgentStatus, ToolCallRecord
-from dev_knowledge_agent.evaluation.metrics import (
+from polaris_agentic_rag.agent.models import AgentResult, AgentStatus, ToolCallRecord
+from polaris_agentic_rag.evaluation.metrics import (
     abstention_accuracy,
     answer_term_match,
     citation_grounded,
@@ -20,12 +20,12 @@ from dev_knowledge_agent.evaluation.metrics import (
     router_component_metrics,
     source_recall,
 )
-from dev_knowledge_agent.evaluation.models import (
+from polaris_agentic_rag.evaluation.models import (
     EvalCaseResult,
     RouterComponentResult,
 )
-from dev_knowledge_agent.observability.models import FailureCategory
-from dev_knowledge_agent.retrieval.models import RetrievalIntent, RetrievalStrategy
+from polaris_agentic_rag.observability.models import FailureCategory
+from polaris_agentic_rag.retrieval.models import RetrievalIntent, RetrievalStrategy
 
 # --------------------------------------------------------------------------- #
 # Tool selection confusion matrix (spec §8 / §46)
