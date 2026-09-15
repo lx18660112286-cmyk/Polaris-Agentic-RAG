@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from dev_knowledge_agent.config.settings import Settings
@@ -82,7 +83,12 @@ def test_lightrag_submodule_path_exists() -> None:
 
 
 def test_no_secrets_in_example_env() -> None:
+    """Placeholder-only rule: real-looking provider keys must not be committed."""
     env_example = PROJECT_ROOT / ".env.example"
-    if env_example.exists():
-        content = env_example.read_text(encoding="utf-8")
-        assert "sk-" not in content and "api_key" not in content.lower()
+    if not env_example.exists():
+        return
+    content = env_example.read_text(encoding="utf-8")
+    #: deepseek-style keys are lowercase hex after sk-; 'x' placeholders are fine
+    assert not re.search(r"sk-[0-9a-fA-F]{20,}", content), (
+        "real-looking API key found in .env.example"
+    )

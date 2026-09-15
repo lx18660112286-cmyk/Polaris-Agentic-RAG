@@ -1,0 +1,69 @@
+{
+  "description": "Stage 1 baseline question set over examples/knowledge_base (Mercury Commerce Platform). Cases come from spec sections 13 (A-H).",
+  "knowledge_base_docs": [
+    "examples/knowledge_base/deployment.md",
+    "examples/knowledge_base/api_auth.md",
+    "examples/knowledge_base/incident_runbook.md",
+    "examples/knowledge_base/service_overview.md"
+  ],
+  "cases": [
+    {
+      "case_id": "A_simple_fact",
+      "type": "simple_fact",
+      "query": "Access token 的有效期是多少？",
+      "expected_evidence": ["api_auth.md"]
+    },
+    {
+      "case_id": "B_exact_terminology",
+      "type": "exact_terminology",
+      "query": "DB_CONNECTION_POOL_EXHAUSTED 是什么意思，应该如何处理？",
+      "expected_evidence": ["incident_runbook.md"]
+    },
+    {
+      "case_id": "C_deployment_rollback",
+      "type": "deployment",
+      "query": "Order Service 发布失败后应该如何回滚？",
+      "expected_evidence": ["deployment.md"]
+    },
+    {
+      "case_id": "D_multi_document_5xx",
+      "type": "multi_document",
+      "query": "Order Service 发布后出现大量 5xx，应如何定位问题并判断是否回滚？",
+      "expected_evidence": ["deployment.md", "incident_runbook.md", "service_overview.md"]
+    },
+    {
+      "case_id": "E_relationship_dependencies",
+      "type": "relationship",
+      "query": "Order Service 依赖哪些基础组件，这些依赖在故障排查中分别有什么作用？",
+      "expected_evidence": ["service_overview.md", "incident_runbook.md"]
+    },
+    {
+      "case_id": "F_auth_401_403",
+      "type": "authentication",
+      "query": "401 和 403 有什么区别？access token 过期以后客户端应该怎么处理？",
+      "expected_evidence": ["api_auth.md"]
+    },
+    {
+      "case_id": "G_unanswerable",
+      "type": "unanswerable",
+      "query": "Billing Service 使用什么数据库？",
+      "expected_evidence": [],
+      "expectation": "知识库不存在 Billing Service，期望不编造确定答案"
+    },
+    {
+      "case_id": "H_insufficient_evidence",
+      "type": "insufficient_evidence",
+      "query": "请给出生产数据库完整的灾难恢复步骤和 RPO/RTO。",
+      "expected_evidence": [],
+      "expectation": "知识库只有组件级信息，缺少 DR 细节，期望体现 evidence insufficient，而不是幻觉补全"
+    }
+  ],
+  "mode_compare_queries": [
+    "Access token 的有效期是多少？",
+    "Order Service 发布后出现大量 5xx，应如何定位问题并判断是否回滚？",
+    "Order Service 依赖哪些基础组件，这些依赖在故障排查中分别有什么作用？"
+  ],
+  "rerank_compare_queries": [
+    "Order Service 发布后出现大量 5xx，应如何定位问题并判断是否回滚？"
+  ]
+}

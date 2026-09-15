@@ -51,3 +51,11 @@ exclude = ["third_party/", ".venv/"]
 python_version = "3.10"
 strict = true
 mypy_path = "src"
+
+# LightRAG is a vendored submodule without py.typed; analyzing it (and its
+# untyped third-party deps such as nano-vectordb) is out of scope. We only
+# consume it inside adapters/lightrag, treating it as an untyped boundary.
+[[tool.mypy.overrides]]
+module = ["lightrag", "lightrag.*"]
+follow_imports = "skip"
+ignore_missing_imports = true

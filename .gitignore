@@ -35,6 +35,9 @@ rag_storage/
 model_cache/
 .cache/
 
+# ---- Stage 1 baseline runtime data (LightRAG generated storage) ----
+.local/
+
 # ---- IDE / OS ----
 .idea/
 .vscode/
