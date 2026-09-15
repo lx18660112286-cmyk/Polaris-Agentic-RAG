@@ -1,10 +1,14 @@
 """Architecture boundary tests.
 
 These tests use Python AST scanning to enforce the project's most
-important dependency boundary:
+important dependency boundaries:
 
 * Only ``src/dev_knowledge_agent/adapters/lightrag/`` may import LightRAG.
 * No LightRAG type may be re-exported upward from the adapter package.
+* ``tools/`` may not import ``adapters/`` (Tool depends on the Port, not
+  the concrete Adapter).
+* ``protocols/`` may not import ``adapters/``, ``tools/`` or ``agent/``.
+* ``evidence/`` may not import LightRAG, adapters, tools or agent.
 """
 
 from __future__ import annotations
@@ -160,3 +164,78 @@ def test_adapter_package_imports_are_isolated() -> None:
 
     assert not hasattr(lightrag_adapter, "LightRAG")
     assert not hasattr(lightrag_adapter, "QueryParam")
+
+
+# --------------------------------------------------------------------------- #
+# Stage 2 additions: keep the layers decoupled
+# --------------------------------------------------------------------------- #
+
+#: forbidden module prefixes, relative to dev_knowledge_agent.*
+TOOLS_FORBIDDEN_ADAPTER = ("dev_knowledge_agent.adapters",)
+
+PROTOCOL_FORBIDDEN = (
+    "dev_knowledge_agent.adapters",
+    "dev_knowledge_agent.tools",
+    "dev_knowledge_agent.agent",
+)
+
+EVIDENCE_FORBIDDEN = (
+    "dev_knowledge_agent.adapters",
+    "dev_knowledge_agent.tools",
+    "dev_knowledge_agent.agent",
+)
+
+
+def _iter_import_tuples(tree: ast.Module):
+    """Yield (lineno, imported_name) for every static import/from-import."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                yield node.lineno, alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            yield node.lineno, node.module
+
+
+def _imports_under_package(path: Path) -> list[tuple[int, str]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return list(_iter_import_tuples(tree))
+
+
+def _assert_layer_does_not_import(
+    layer_dir: Path,
+    forbidden_prefixes: tuple[str, ...],
+    extra: tuple[str, ...] = (),
+) -> None:
+    """Assert no file under ``layer_dir`` imports any forbidden prefix."""
+    forbidden = tuple(forbidden_prefixes) + tuple(extra)
+    violations: list[str] = []
+    for file in _iter_python_files(layer_dir):
+        for lineno, imported in _imports_under_package(file):
+            if imported.startswith(forbidden):
+                rel = file.relative_to(PROJECT_ROOT).as_posix()
+                violations.append(f"{rel}:{lineno}: import {imported}")
+    assert violations == [], "\n".join(violations)
+
+
+def test_tools_do_not_import_adapters() -> None:
+    """tools/ must not import adapters/ (Tool -> Port, not concrete Adapter)."""
+    layer = SRC_ROOT / "tools"
+    _assert_layer_does_not_import(layer, TOOLS_FORBIDDEN_ADAPTER)
+
+
+def test_tools_do_not_import_lightrag() -> None:
+    """tools/ must not import LightRAG at all."""
+    layer = SRC_ROOT / "tools"
+    _assert_layer_does_not_import(layer, (FORBIDDEN_MODULE_ROOT,))
+
+
+def test_protocols_do_not_import_downstream_layers() -> None:
+    """protocols/ must be an upstream abstraction (no adapters/tools/agent)."""
+    layer = SRC_ROOT / "protocols"
+    _assert_layer_does_not_import(layer, PROTOCOL_FORBIDDEN)
+
+
+def test_evidence_do_not_import_downstream_layers() -> None:
+    """evidence/ must be domain-only (no LightRAG/adapters/tools/agent)."""
+    layer = SRC_ROOT / "evidence"
+    _assert_layer_does_not_import(layer, EVIDENCE_FORBIDDEN, extra=(FORBIDDEN_MODULE_ROOT,))

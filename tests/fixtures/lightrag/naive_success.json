@@ -1,0 +1,37 @@
+{
+  "status": "success",
+  "message": "Query executed successfully",
+  "data": {
+    "entities": [],
+    "relationships": [],
+    "chunks": [
+      {
+        "content": "Deployment of the Order Service is performed via the CI pipeline, followed by a health check before traffic is shifted.",
+        "file_path": "deployment.md",
+        "chunk_id": "deployment-chunk-0",
+        "reference_id": "2"
+      }
+    ],
+    "references": [
+      {
+        "reference_id": "2",
+        "file_path": "deployment.md"
+      }
+    ]
+  },
+  "metadata": {
+    "query_mode": "naive",
+    "keywords": {
+      "high_level": ["deployment"],
+      "low_level": ["ci pipeline", "health check"]
+    },
+    "processing_info": {
+      "total_entities_found": 0,
+      "total_relations_found": 0,
+      "entities_after_truncation": 0,
+      "relations_after_truncation": 0,
+      "merged_chunks_count": 1,
+      "final_chunks_count": 1
+    }
+  }
+}

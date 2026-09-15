@@ -1,5 +1,25 @@
 """Agent-facing tools.
 
-Stage 0 reserves this package. ``RagSearchTool`` will be implemented in
-Stage 2; other external tools (Git/Log/Database/Web) come in Stage 6.
+``RagSearchTool`` is the knowledge retrieval tool (Stage 2). Other
+external tools (Git/Log/Database/Web) come in later stages.
 """
+
+from __future__ import annotations
+
+from dev_knowledge_agent.tools.rag_search import (
+    TOOL_DESCRIPTION,
+    TOOL_NAME,
+    RagSearchInput,
+    RagSearchResult,
+    RagSearchStatus,
+    RagSearchTool,
+)
+
+__all__ = [
+    "TOOL_DESCRIPTION",
+    "TOOL_NAME",
+    "RagSearchInput",
+    "RagSearchResult",
+    "RagSearchStatus",
+    "RagSearchTool",
+]

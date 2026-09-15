@@ -56,6 +56,8 @@
 
 ## Stage 2 — RagSearchTool + KnowledgeSearchPort + Evidence Contract
 
+**状态**: ✅ 已交付（2026-09-15），详见 `docs/STAGE2_RAG_SEARCH_TOOL.md` 与 `docs/adr/0002-evidence-contract-and-search-port.md`。
+
 **Goal（关键阶段）**: 把 Kernel 包装成稳定的 Agent-facing Tool。
 
 **Deliverables**:
@@ -63,6 +65,12 @@
 - `KnowledgeSearchPort`
 - `LightRAGAdapter`（正式业务实现）
 - Evidence Contract（query / retrieval intent / evidence / citation / insufficient evidence / tool failure / normalized search result）
+- `SourceResolver`（basename → 路径还原，三态）
+- Result Mapper（raw `aquery_data` → 领域模型）
+- domain exceptions（`evidence/errors.py`）
+- `bootstrap.py` 组合根
+- workspace 隔离（AdapterSettings.workspace）
+- 真实 Kernel E2E 集成测试（唯一 workspace）
 
 ```text
 Test / Caller
@@ -80,10 +88,11 @@ LightRAG
 - 不实现 Query Router / RetrievalPlan
 - 不引入 Agent
 
-**Acceptance Criteria**:
+**Acceptance Criteria**（已通过 `tests/architecture` + 单元测试 + 真实 E2E 验证）:
 - Tool 只依赖端口，不依赖 LightRAG
 - 关闭代码路径上无 LightRAG 类型泄漏
 - Evidence Contract 覆盖 Stage 1 观察到的所有返回值形态
+- 真实 Kernel E2E（唯一 workspace）跑通：initialize → ingest → tool.invoke → 结构化证据/citation → close
 
 ## Stage 3 — Retrieval Strategy + Query Router
 

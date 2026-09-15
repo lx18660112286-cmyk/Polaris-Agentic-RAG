@@ -1,6 +1,12 @@
 """Protocols (interfaces) for the Dev Knowledge Agent core.
 
-Stage 0 only reserves the location. The concrete
-``KnowledgeSearchPort`` interface will be defined when RagSearchTool is
-implemented (Stage 2).
+``KnowledgeSearchPort`` is the framework-agnostic retrieval abstraction:
+the Tool depends on it, the Adapter implements it, and the two never
+couple directly.
 """
+
+from __future__ import annotations
+
+from dev_knowledge_agent.protocols.knowledge_search import KnowledgeSearchPort
+
+__all__ = ["KnowledgeSearchPort"]

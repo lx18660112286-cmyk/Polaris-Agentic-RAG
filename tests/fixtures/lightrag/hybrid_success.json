@@ -1,0 +1,68 @@
+{
+  "status": "success",
+  "message": "Query executed successfully",
+  "data": {
+    "entities": [
+      {
+        "entity_name": "Access Token",
+        "entity_type": "credential",
+        "description": "Temporary credential used to authenticate API requests to the Mercury Commerce Platform.",
+        "source_id": "api_auth.md",
+        "file_path": "api_auth.md",
+        "created_at": "2026-01-01T00:00:00Z",
+        "reference_id": "1"
+      },
+      {
+        "entity_name": "Expiry Window",
+        "entity_type": "setting",
+        "description": "Time-to-live window after which an access token is no longer accepted.",
+        "source_id": "api_auth.md",
+        "file_path": "api_auth.md",
+        "created_at": "2026-01-01T00:00:00Z",
+        "reference_id": "1"
+      }
+    ],
+    "relationships": [
+      {
+        "src_id": "Access Token",
+        "tgt_id": "Expiry Window",
+        "description": "Access Token is subject to an Expiry Window before invalidation.",
+        "keywords": "token, expiry, validity",
+        "weight": 1.5,
+        "source_id": "api_auth.md",
+        "file_path": "api_auth.md",
+        "created_at": "2026-01-01T00:00:00Z",
+        "reference_id": "1"
+      }
+    ],
+    "chunks": [
+      {
+        "content": "Access token validity: client credentials received via the token endpoint are valid for 30 minutes from issuance.",
+        "file_path": "api_auth.md",
+        "chunk_id": "api_auth-chunk-0",
+        "reference_id": "1"
+      }
+    ],
+    "references": [
+      {
+        "reference_id": "1",
+        "file_path": "api_auth.md"
+      }
+    ]
+  },
+  "metadata": {
+    "query_mode": "hybrid",
+    "keywords": {
+      "high_level": ["access token validity"],
+      "low_level": ["token", "expiry", "30 minutes"]
+    },
+    "processing_info": {
+      "total_entities_found": 30,
+      "total_relations_found": 34,
+      "entities_after_truncation": 2,
+      "relations_after_truncation": 1,
+      "merged_chunks_count": 4,
+      "final_chunks_count": 1
+    }
+  }
+}

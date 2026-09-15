@@ -1,5 +1,34 @@
 """Evidence / Search Result contracts.
 
-Stage 0 reserves this package. The Evidence Contract will be designed in
-Stage 2 based on actual observations of the pinned LightRAG kernel.
+The Evidence Contract (``models``) is OUR domain model and is
+framework-agnostic. It carries no LightRAG types. Domain exceptions
+(``errors``) also never import LightRAG.
 """
+
+from __future__ import annotations
+
+from dev_knowledge_agent.evidence.models import (
+    ChunkEvidence,
+    Citation,
+    EntityEvidence,
+    Evidence,
+    EvidenceAvailability,
+    KeywordSet,
+    KnowledgeSearchResult,
+    RelationshipEvidence,
+    RetrievalDiagnostics,
+    SourceResolutionStatus,
+)
+
+__all__ = [
+    "ChunkEvidence",
+    "Citation",
+    "EntityEvidence",
+    "Evidence",
+    "EvidenceAvailability",
+    "KeywordSet",
+    "KnowledgeSearchResult",
+    "RelationshipEvidence",
+    "RetrievalDiagnostics",
+    "SourceResolutionStatus",
+]

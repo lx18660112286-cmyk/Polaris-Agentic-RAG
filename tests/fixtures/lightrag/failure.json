@@ -1,0 +1,9 @@
+{
+  "status": "failure",
+  "message": "No relevant document chunks found.",
+  "data": {},
+  "metadata": {
+    "failure_reason": "no_results",
+    "mode": "naive"
+  }
+}

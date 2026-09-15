@@ -87,6 +87,33 @@ LightRAG
 - 生产代码中只有 `src/dev_knowledge_agent/adapters/lightrag/` 允许 import LightRAG（由 `tests/architecture/test_boundaries.py` 用 AST 强制）。
 - 禁止从 Adapter 向上 re-export `LightRAG` / `QueryParam`。
 - 禁止 Tool API 接收 LightRAG-specific 类型。
+- **Stage 2 已落地**：`KnowledgeSearchPort` 只暴露 `async search(query) -> KnowledgeSearchResult`；
+  `KnowledgeSearchResult` 是框架无关的领域模型（`evidence/models.py`），不携带 LightRAG 类型/参数。
+- Tool 只依赖 Port，不依赖 Adapter（由架构测试强制 `tools/` 不得 import `adapters/`）。
+
+## Evidence Contract（Stage 2 已实现）
+
+`evidence/models.py` 定义框架无关的检索证据模型：
+
+```text
+KnowledgeSearchResult
+ ├─ query
+ ├─ evidence        { chunks / entities / relationships }
+ ├─ citations       [ {reference_id, source_name, source_path, source_resolution} ]
+ ├─ diagnostics     { query_mode / keywords / counts / processing_info(...) }
+ └─ evidence_availability ∈ {NONE, PRESENT, TRUNCATED}
+```
+
+- 字段形状扎根于 pinned Kernel `aquery_data` 的真实返回；缺失字段保持 `None`，不伪造。
+- Kernel 只给 citation 的 **basename** → Adapter 内部用 `SourceResolver` 还原完整路径，
+  三态结果（`RESOLVED / UNRESOLVED / AMBIGUOUS`），歧义绝不静默选择。
+- Kernel/Adapter 的各种失败被 `evidence/errors.py` 归一化为统一领域异常（Tool/Agent 只见统一失败语义）。
+
+## workspace 隔离（Stage 2 新增）
+
+LightRAG 的 `doc_status` 去重与 store 按 `workspace` 命名空间划分，与 `working_dir` 解耦。
+`LightRAGAdapterSettings.workspace`（默认跟随全局 `WORKSPACE` env）用于为不同知识库/环境
+隔离去重与存储；留空即共享全局。详情见 `docs/STAGE2_RAG_SEARCH_TOOL.md` §6。
 
 ## Tool 不应暴露 Kernel 参数
 
@@ -172,3 +199,6 @@ LightRAG 负责（Kernel 能力）：
 ```
 
 Stage 0 只建立这些能力未来存在的位置和边界，不实现业务逻辑。
+Stage 1 验证了 pinned Kernel 的真实 E2E 行为并提供设计观察依据（见 `docs/STAGE1_LIGHTRAG_BASELINE.md`）。
+Stage 2 已落地 `RagSearchTool` / `KnowledgeSearchPort` / Evidence Contract / `LightRAGAdapter`
+（见 `docs/STAGE2_RAG_SEARCH_TOOL.md` 与 `docs/adr/0002-evidence-contract-and-search-port.md`）。
