@@ -7,15 +7,18 @@ Usage (from project root, inside .venv):
 
     .\\.venv\\Scripts\\python.exe scripts/run_agent.py
     .\\.venv\\Scripts\\python.exe scripts/run_agent.py --debug
-    .\\.venv\\Scripts\\python.exe scripts/run_agent.py --feedback
+    .\\.venv\\Scripts\\python.exe scripts/run_agent.py --no-feedback
 
 ``--debug`` traces every Agent event and prints the per-query event log
 (also archived as JSONL under ``.local/traces/``).
 
-``--feedback`` additionally wires the Stage 5.2 data flywheel (demo): each
-answered query asks whether the answer was helpful, records the feedback
-(bound to the runtime trace) into ``.local/feedback/``, and queues any
-matching review candidates. This is a side channel only -- the flywheel
+The Stage 5.2 data flywheel is ON by default (runtime feedback): after each
+answered query you rate the answer (enter/i/t/n/b/?), the feedback (bound to
+the runtime trace) is recorded into ``.local/feedback/``, any matching review
+candidates are queued, and a live status line is printed. Use ``/status`` to
+view aggregate flywheel metrics, ``/skip`` to skip rating this round, and
+``/nofeedback`` to disable rating for the session. Pass ``--no-feedback`` to
+disable the flywheel entirely. This is a side channel only -- the flywheel
 never changes the agent's behavior.
 
 Type a query; type `exit` / `quit` to stop.
@@ -32,31 +35,38 @@ from pathlib import Path
 from _flywheel_cli import build_flywheel
 
 from polaris_agentic_rag.adapters.lightrag.native_baseline import ingest_documents
-from polaris_agentic_rag.bootstrap import build_agent
+from polaris_agentic_rag.bootstrap import build_agent, create_lightrag_adapter
 from polaris_agentic_rag.config.settings import get_settings
-from polaris_agentic_rag.flywheel.models import FeedbackType, is_negative_feedback
+from polaris_agentic_rag.flywheel.models import (
+    FeedbackType,
+    ImprovementCategory,
+    ReviewCandidate,
+    is_negative_feedback,
+)
+from polaris_agentic_rag.flywheel.service import DataFlywheelService
 from polaris_agentic_rag.observability.sinks import InMemoryTraceSink, JsonlTraceSink
 from polaris_agentic_rag.observability.tracer import Tracer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-WORKDIR = PROJECT_ROOT / ".local" / "agent_live"
+WORKDIR = PROJECT_ROOT / ".local" / "agent_legal_v1"
 TRACE_DIR = PROJECT_ROOT / ".local" / "traces"
-KB_FILES = [
-    PROJECT_ROOT / "examples" / "knowledge_base" / name
-    for name in ("deployment.md", "api_auth.md", "incident_runbook.md", "service_overview.md")
-]
+LEGAL_KB_DIR = PROJECT_ROOT / "examples" / "knowledge_base" / "legal"
 
 
-def _collect_feedback() -> FeedbackType | None:
-    """Ask the user how the last answer was; return a type or None to skip."""
-    print(
-        "    was the answer helpful?  [enter=praise/good / i=incorrect / t=too brief / ?=other] > ",
-        end="",
-    )
-    try:
-        raw = input().strip().lower()
-    except EOFError:
-        return None
+def should_index(path: Path) -> bool:
+    name = path.name.lower()
+    if name.startswith("_"):
+        return False
+    if name.startswith("coverage_gap"):
+        return False
+    return path.suffix.lower() == ".md"
+
+
+KB_FILES = sorted(p for p in LEGAL_KB_DIR.rglob("*.md") if should_index(p))
+
+
+def _map_feedback(raw: str) -> FeedbackType | None:
+    """Map a single-key rating to a FeedbackType; empty/good -> POSITIVE."""
     if not raw:
         return FeedbackType.POSITIVE
     mapping = {
@@ -98,9 +108,9 @@ async def main() -> None:
         help="trace Agent events and print them after each query.",
     )
     parser.add_argument(
-        "--feedback",
+        "--no-feedback",
         action="store_true",
-        help="enable the Stage 5.2 data flywheel demo (record per-query feedback).",
+        help="disable the Stage 5.2 data flywheel (runtime feedback is ON by default).",
     )
     args = parser.parse_args()
 
@@ -116,13 +126,32 @@ async def main() -> None:
     WORKDIR.mkdir(parents=True, exist_ok=True)
     sink = InMemoryTraceSink()
     tracer = Tracer(sinks=[JsonlTraceSink(TRACE_DIR), sink] if args.debug else [sink])
-    built = build_agent(get_settings(), working_dir=WORKDIR, tracer=tracer)
-    adapter = built.adapter
-    flywheel = build_flywheel() if args.feedback else None
+    adapter = create_lightrag_adapter(
+        working_dir=WORKDIR,
+        knowledge_roots=[LEGAL_KB_DIR],
+    )
+    built = build_agent(get_settings(), lightrag_adapter=adapter, tracer=tracer)
+    #: the flywheel is ON by default (runtime feedback); --no-feedback disables it.
+    flywheel: DataFlywheelService | None = build_flywheel() if not args.no_feedback else None
+    #: session-level flywheel counters for the live status line.
+    fb_count = 0
+    neg_count = 0
+    gap_count = 0
+    queued: list[str] = []
+    feedback_on = flywheel is not None
     try:
         await adapter.initialize()
         kernel = adapter._kernel  # noqa: SLF001 - demo probes the composited kernel
         assert kernel is not None
+
+        print("\nUsing legal knowledge base:")
+        print("WORKDIR:", WORKDIR)
+        print("LEGAL_KB_DIR:", LEGAL_KB_DIR)
+        print("KB_FILES:", len(KB_FILES))
+        for path in KB_FILES:
+            print(" -", path)
+        print()
+
         await ingest_documents(kernel, KB_FILES)
 
         while True:
@@ -154,27 +183,67 @@ async def main() -> None:
                         f"         [{event.seq:>2}] {event.event_type.value}"
                         + (f"  ({attrs})" if attrs else "")
                     )
-            if flywheel is not None:
-                feedback_type = _collect_feedback()
-                if feedback_type is not None:
-                    trace_id = result.trace_id or ""
-                    feedback_event = await flywheel.capture_feedback(
-                        trace_id=trace_id,
-                        query=query,
-                        answer=result.answer,
-                        feedback_type=feedback_type,
+            if flywheel is not None and feedback_on:
+                #: runtime flywheel: rate the answer + live commands.
+                try:
+                    raw = (
+                        input(
+                            "  rate? [enter=good / i=incorrect / t=brief / n=no evidence / "
+                            "b=bad cite / ?=other / /status / /skip / /nofeedback] > "
+                        )
+                        .strip()
+                        .lower()
                     )
+                except EOFError:
+                    break
+                if raw.startswith("/"):
+                    if raw == "/status":
+                        print(flywheel.report())
+                    elif raw == "/nofeedback":
+                        feedback_on = False
+                        print("       flywheel scoring disabled for this session.")
+                    elif raw == "/skip":
+                        pass  # don't record this round
+                    else:
+                        print("       unknown command; try /status /skip /nofeedback")
+                    continue
+                feedback_type = _map_feedback(raw)
+                if feedback_type is None:
                     print(
-                        f"       feedback recorded: {feedback_event.feedback_id}"
-                        f" ({feedback_type.value})"
+                        "       unknown rating; use enter/i/t/n/b/? (or /status /skip /nofeedback)"
                     )
-                    if is_negative_feedback(feedback_type):
-                        candidates = flywheel.create_candidates(result, feedback=feedback_event)
-                        if candidates:
-                            print(
-                                "       queued for review: "
-                                + ", ".join(c.candidate_id for c in candidates)
-                            )
+                    continue
+                trace_id = result.trace_id or ""
+                feedback_event = await flywheel.capture_feedback(
+                    trace_id=trace_id,
+                    query=query,
+                    answer=result.answer,
+                    feedback_type=feedback_type,
+                )
+                fb_count += 1
+                print(
+                    f"       feedback recorded: {feedback_event.feedback_id}"
+                    f" ({feedback_type.value})"
+                )
+                if is_negative_feedback(feedback_type):
+                    neg_count += 1
+                    candidates: list[ReviewCandidate] = flywheel.create_candidates(
+                        result, feedback=feedback_event
+                    )
+                    for cand in candidates:
+                        queued.append(cand.candidate_id)
+                        if cand.category is ImprovementCategory.KNOWLEDGE_GAP:
+                            gap_count += 1
+                    if candidates:
+                        print(
+                            "       queued for review: "
+                            + ", ".join(c.candidate_id for c in candidates)
+                        )
+                #: live status line so the flywheel is visible at runtime.
+                print(
+                    f"       [flywheel] feedback={fb_count} negative={neg_count} "
+                    f"KNOWLEDGE_GAP={gap_count} queued={len(queued)}"
+                )
     finally:
         await adapter.close()
 

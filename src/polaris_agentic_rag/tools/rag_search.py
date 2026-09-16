@@ -43,10 +43,14 @@ __all__ = [
 
 TOOL_NAME = "search_dev_knowledge"
 TOOL_DESCRIPTION = (
-    "Search the internal developer knowledge base about: "
-    "deployment, authentication / access tokens, production incidents / "
-    "runbooks, and service architecture & dependencies. Returns structured "
-    "evidence plus source citations. "
+    "Search the internal legal knowledge base about: 中华人民共和国监察法, "
+    "中华人民共和国立法法, guiding / typical cases (criminal, civil, "
+    "administrative), relevant legal provisions, judicial interpretations, and "
+    "case ruling points. Returns structured evidence plus source citations "
+    "(document name / article / case number). "
+    "Call it FIRST for any question answerable by the legal knowledge base; do "
+    "not answer from memory. If the KB has no evidence, say that no basis was "
+    "found and do not fabricate. "
     "Do NOT use it for general conversation, arithmetic, generic programming "
     "knowledge, or external web facts."
 )

@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 from polaris_agentic_rag.adapters.lightrag.native_baseline import ingest_documents
-from polaris_agentic_rag.bootstrap import build_agent
+from polaris_agentic_rag.bootstrap import build_agent, create_lightrag_adapter
 from polaris_agentic_rag.config.settings import get_settings
 from polaris_agentic_rag.evaluation.evaluator import build_case_result
 from polaris_agentic_rag.evaluation.models import EvalCase, EvalCaseResult
@@ -35,14 +35,23 @@ from polaris_agentic_rag.observability.sinks import InMemoryTraceSink, JsonlTrac
 from polaris_agentic_rag.observability.tracer import Tracer
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-WORKDIR = PROJECT_ROOT / ".local" / "eval_live"
+WORKDIR = PROJECT_ROOT / ".local" / "eval_legal_v1"
 TRACE_DIR = PROJECT_ROOT / ".local" / "traces"
 OUTPUT_DIR = PROJECT_ROOT / ".local" / "eval"
 DEFAULT_DATASET = PROJECT_ROOT / "examples" / "evaluation" / "dev_knowledge_eval.jsonl"
-KB_FILES = [
-    PROJECT_ROOT / "examples" / "knowledge_base" / name
-    for name in ("deployment.md", "api_auth.md", "incident_runbook.md", "service_overview.md")
-]
+LEGAL_KB_DIR = PROJECT_ROOT / "examples" / "knowledge_base" / "legal"
+
+
+def should_index(path: Path) -> bool:
+    name = path.name.lower()
+    if name.startswith("_"):
+        return False
+    if name.startswith("coverage_gap"):
+        return False
+    return path.suffix.lower() == ".md"
+
+
+KB_FILES = sorted(p for p in LEGAL_KB_DIR.rglob("*.md") if should_index(p))
 
 
 async def main() -> int:
@@ -73,12 +82,15 @@ async def main() -> int:
     tracer = Tracer(sinks=[JsonlTraceSink(TRACE_DIR), sink])
 
     WORKDIR.mkdir(parents=True, exist_ok=True)
+    adapter = create_lightrag_adapter(
+        working_dir=WORKDIR,
+        knowledge_roots=[LEGAL_KB_DIR],
+    )
     built = build_agent(
         get_settings(),
-        working_dir=WORKDIR,
+        lightrag_adapter=adapter,
         tracer=tracer,
     )
-    adapter = built.adapter
 
     async def run_case(case: EvalCase) -> EvalCaseResult:
         sink.clear()
@@ -97,6 +109,15 @@ async def main() -> int:
         await adapter.initialize()
         kernel = adapter._kernel  # noqa: SLF001 - demo probes the composited kernel
         assert kernel is not None
+
+        print("\nUsing legal knowledge base for evaluation:")
+        print("WORKDIR:", WORKDIR)
+        print("LEGAL_KB_DIR:", LEGAL_KB_DIR)
+        print("KB_FILES:", len(KB_FILES))
+        for path in KB_FILES:
+            print(" -", path)
+        print()
+
         await ingest_documents(kernel, KB_FILES)
 
         result = await runner.run(cases, sample_limit=args.limit)

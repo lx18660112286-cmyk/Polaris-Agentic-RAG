@@ -15,6 +15,7 @@ This is the ONLY production module allowed to import LightRAG.
 from __future__ import annotations
 
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -55,6 +56,8 @@ async def _deepseek_complete(
     """DeepSeek LLM function in the shape LightRAG expects (OpenAI compat)."""
     if history_messages is None:
         history_messages = []
+    kwargs.pop("reasoning_effort", None)
+    kwargs.pop("temperature", None)
     raw = await openai_complete_if_cache(
         _env("DKA_LIGHTRAG_LLM_MODEL", DEFAULT_LLM_MODEL),
         prompt,
@@ -65,7 +68,8 @@ async def _deepseek_complete(
         entity_extraction=entity_extraction,
         base_url=_env("DKA_LIGHTRAG_LLM_BASE_URL", DEFAULT_LLM_BASE_URL),
         api_key=_env("DEEPSEEK_API_KEY"),
-        timeout=int(_env("DKA_LIGHTRAG_LLM_TIMEOUT", "180")),
+        timeout=int(_env("DKA_LIGHTRAG_LLM_TIMEOUT", "1000")),
+        extra_body={"thinking": {"type": "disabled"}},
         **kwargs,
     )
     if not isinstance(raw, str):
@@ -73,19 +77,83 @@ async def _deepseek_complete(
     return raw
 
 
+def _make_role_llm(
+    env_prefix: str, fallback_model: str, fallback_url: str
+) -> Callable[..., Awaitable[str]]:
+    """Build a role-specific LLM func reading ``{PREFIX}_LLM_MODEL`` /
+    ``{PREFIX}_LLM_BINDING_HOST`` / ``{PREFIX}_LLM_BINDING_API_KEY`` / \
+    ``{PREFIX}_LLM_TIMEOUT``, falling back to the global settings.
+
+    Registered for LightRAG roles ``keyword`` and ``query`` so the keyword
+    extraction and final Q&A phases can each use their own binding, timeout
+    and concurrency (``{PREFIX}_MAX_ASYNC_LLM`` is applied at the role layer).
+    """
+
+    async def role_complete(
+        prompt: str,
+        system_prompt: str | None = None,
+        history_messages: list[dict[str, Any]] | None = None,
+        enable_cot: bool = False,
+        **kwargs: Any,
+    ) -> str:
+        if history_messages is None:
+            history_messages = []
+        kwargs.pop("reasoning_effort", None)
+        kwargs.pop("temperature", None)
+        kwargs.pop("keyword_extraction", None)
+        kwargs.pop("entity_extraction", None)
+        raw = await openai_complete_if_cache(
+            _env(f"{env_prefix}_LLM_MODEL", fallback_model),
+            prompt,
+            system_prompt=system_prompt,
+            history_messages=history_messages,
+            enable_cot=enable_cot,
+            base_url=_env(f"{env_prefix}_LLM_BINDING_HOST", fallback_url),
+            api_key=_env(f"{env_prefix}_LLM_BINDING_API_KEY", _env("DEEPSEEK_API_KEY")),
+            timeout=int(
+                _env(f"{env_prefix}_LLM_TIMEOUT", _env("DKA_LIGHTRAG_LLM_TIMEOUT", "1000"))
+            ),
+            extra_body={"thinking": {"type": "disabled"}},
+            **kwargs,
+        )
+        if not isinstance(raw, str):
+            raise TypeError(f"unexpected LLM response type: {type(raw).__name__}")
+        return raw
+
+    return role_complete
+
+
 def build_lightrag(working_dir: str | Path, *, workspace: str = "") -> LightRAG:
     """Construct a LightRAG instance wired to DeepSeek + Ollama bge-m3.
 
     ``workspace`` scopes the kernel's storage namespace (dedup + stores).
     An empty value defers to LightRAG's global ``WORKSPACE`` env / default.
+
+    Role LLMs: the ``keyword`` and ``query`` roles get their own bindings from
+    the ``KEYWORD_LLM_*`` / ``QUERY_LLM_*`` env vars (each with its own max
+    async / timeout). The remaining ``extract`` / ``vlm`` roles inherit the
+    base ``llm_model_func`` and ``MAX_ASYNC_LLM``.
     """
     return LightRAG(
         working_dir=str(working_dir),
         workspace=workspace,
         llm_model_func=_deepseek_complete,
         llm_model_name=_env("DKA_LIGHTRAG_LLM_MODEL", DEFAULT_LLM_MODEL),
+        llm_model_max_async=int(_env("MAX_ASYNC_LLM", "4")),
         embedding_func=ollama_embed,
         log_level="INFO",
+        role_llm_configs={
+            "keyword": {
+                "func": _make_role_llm("KEYWORD_LLM", DEFAULT_LLM_MODEL, DEFAULT_LLM_BASE_URL),
+                "max_async": int(_env("KEYWORD_MAX_ASYNC_LLM", "2")),
+                "timeout": int(_env("KEYWORD_LLM_TIMEOUT", "60")),
+            },
+            "query": {
+                "func": _make_role_llm("QUERY_LLM", DEFAULT_LLM_MODEL, DEFAULT_LLM_BASE_URL),
+                "max_async": int(_env("QUERY_MAX_ASYNC_LLM", "2")),
+                "timeout": int(_env("QUERY_LLM_TIMEOUT", "120")),
+            },
+        },
     )
 
 

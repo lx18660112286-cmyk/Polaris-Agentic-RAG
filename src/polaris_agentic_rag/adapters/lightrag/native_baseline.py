@@ -70,7 +70,7 @@ async def deepseek_complete(
         entity_extraction=entity_extraction,
         base_url=_env("DKA_LIGHTRAG_LLM_BASE_URL", DEFAULT_LLM_BASE_URL),
         api_key=_env("DEEPSEEK_API_KEY"),
-        timeout=int(_env("DKA_LIGHTRAG_LLM_TIMEOUT", "180")),
+        timeout=int(_env("DKA_LIGHTRAG_LLM_TIMEOUT", "1000")),
         **kwargs,
     )
     if not isinstance(raw, str):
@@ -163,13 +163,21 @@ async def run_query(
 
 
 async def ingest_documents(rag: LightRAG, doc_paths: list[Path]) -> dict[str, Any]:
-    """Ingest the given documents, keeping original file paths for citation."""
+    """Ingest legal documents as vector-only chunks first.
+
+    process_options="F!" means:
+    - F: fixed-token chunking
+    - !: skip entity/relation extraction, do not build knowledge graph
+    """
     contents: list[str] = [p.read_text(encoding="utf-8") for p in doc_paths]
     start = time.perf_counter()
+
     await rag.ainsert(
         contents,
         file_paths=[str(p) for p in doc_paths],
+        
     )
+
     elapsed = time.perf_counter() - start
     return {"documents": len(doc_paths), "duration_s": elapsed}
 
