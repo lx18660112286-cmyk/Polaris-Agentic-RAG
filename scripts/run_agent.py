@@ -7,9 +7,16 @@ Usage (from project root, inside .venv):
 
     .\\.venv\\Scripts\\python.exe scripts/run_agent.py
     .\\.venv\\Scripts\\python.exe scripts/run_agent.py --debug
+    .\\.venv\\Scripts\\python.exe scripts/run_agent.py --feedback
 
 ``--debug`` traces every Agent event and prints the per-query event log
 (also archived as JSONL under ``.local/traces/``).
+
+``--feedback`` additionally wires the Stage 5.2 data flywheel (demo): each
+answered query asks whether the answer was helpful, records the feedback
+(bound to the runtime trace) into ``.local/feedback/``, and queues any
+matching review candidates. This is a side channel only -- the flywheel
+never changes the agent's behavior.
 
 Type a query; type `exit` / `quit` to stop.
 """
@@ -22,9 +29,12 @@ import os
 import sys
 from pathlib import Path
 
+from _flywheel_cli import build_flywheel
+
 from polaris_agentic_rag.adapters.lightrag.native_baseline import ingest_documents
 from polaris_agentic_rag.bootstrap import build_agent
 from polaris_agentic_rag.config.settings import get_settings
+from polaris_agentic_rag.flywheel.models import FeedbackType, is_negative_feedback
 from polaris_agentic_rag.observability.sinks import InMemoryTraceSink, JsonlTraceSink
 from polaris_agentic_rag.observability.tracer import Tracer
 
@@ -35,6 +45,28 @@ KB_FILES = [
     PROJECT_ROOT / "examples" / "knowledge_base" / name
     for name in ("deployment.md", "api_auth.md", "incident_runbook.md", "service_overview.md")
 ]
+
+
+def _collect_feedback() -> FeedbackType | None:
+    """Ask the user how the last answer was; return a type or None to skip."""
+    print(
+        "    was the answer helpful?  [enter=praise/good / i=incorrect / t=too brief / ?=other] > ",
+        end="",
+    )
+    try:
+        raw = input().strip().lower()
+    except EOFError:
+        return None
+    if not raw:
+        return FeedbackType.POSITIVE
+    mapping = {
+        "i": FeedbackType.INCORRECT,
+        "t": FeedbackType.INCOMPLETE,
+        "n": FeedbackType.UNSUPPORTED,
+        "b": FeedbackType.BAD_CITATION,
+        "?": FeedbackType.OTHER,
+    }
+    return mapping.get(raw)
 
 
 def _load_env_file(env_path: Path) -> None:
@@ -65,6 +97,11 @@ async def main() -> None:
         action="store_true",
         help="trace Agent events and print them after each query.",
     )
+    parser.add_argument(
+        "--feedback",
+        action="store_true",
+        help="enable the Stage 5.2 data flywheel demo (record per-query feedback).",
+    )
     args = parser.parse_args()
 
     #: Load local secrets from the gitignored .env (existing env vars win).
@@ -74,12 +111,14 @@ async def main() -> None:
         print("DEEPSEEK_API_KEY not set; cannot run the live Agent.", file=sys.stderr)
         return
 
-    #: verify the example KB is ingested once for this CLI session.
+    #: the tracer is always wired so --feedback can bind a trace_id; the
+    #: on-disk JSONL archive is only enabled under --debug.
     WORKDIR.mkdir(parents=True, exist_ok=True)
     sink = InMemoryTraceSink()
-    tracer = Tracer(sinks=[JsonlTraceSink(TRACE_DIR), sink]) if args.debug else None
+    tracer = Tracer(sinks=[JsonlTraceSink(TRACE_DIR), sink] if args.debug else [sink])
     built = build_agent(get_settings(), working_dir=WORKDIR, tracer=tracer)
     adapter = built.adapter
+    flywheel = build_flywheel() if args.feedback else None
     try:
         await adapter.initialize()
         kernel = adapter._kernel  # noqa: SLF001 - demo probes the composited kernel
@@ -115,6 +154,27 @@ async def main() -> None:
                         f"         [{event.seq:>2}] {event.event_type.value}"
                         + (f"  ({attrs})" if attrs else "")
                     )
+            if flywheel is not None:
+                feedback_type = _collect_feedback()
+                if feedback_type is not None:
+                    trace_id = result.trace_id or ""
+                    feedback_event = await flywheel.capture_feedback(
+                        trace_id=trace_id,
+                        query=query,
+                        answer=result.answer,
+                        feedback_type=feedback_type,
+                    )
+                    print(
+                        f"       feedback recorded: {feedback_event.feedback_id}"
+                        f" ({feedback_type.value})"
+                    )
+                    if is_negative_feedback(feedback_type):
+                        candidates = flywheel.create_candidates(result, feedback=feedback_event)
+                        if candidates:
+                            print(
+                                "       queued for review: "
+                                + ", ".join(c.candidate_id for c in candidates)
+                            )
     finally:
         await adapter.close()
 

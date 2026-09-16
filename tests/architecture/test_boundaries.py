@@ -330,3 +330,24 @@ def test_observability_does_not_import_infrastructure_or_provider() -> None:
     """observability/ never imports adapters / LightRAG / the provider SDK (openai)."""
     layer = SRC_ROOT / "observability"
     _assert_layer_does_not_import(layer, EVAL_OBS_FORBIDDEN)
+
+
+# --------------------------------------------------------------------------- #
+# Stage 5.2 additions: flywheel/ boundary (data flywheel is a side channel)
+# --------------------------------------------------------------------------- #
+
+#: flywheel/ orchestrates data state transitions only. It must never touch
+#: infrastructure (LightRAG / adapters) nor a provider SDK (openai). It may
+#: reuse the agent/evaluation/observability/retrieval contracts (spec §44/§45)
+#: but must stay out of the runtime retrieval path.
+FLYWHEEL_FORBIDDEN = (
+    "polaris_agentic_rag.adapters",
+    FORBIDDEN_MODULE_ROOT,
+    "openai",
+)
+
+
+def test_flywheel_does_not_import_infrastructure_or_provider() -> None:
+    """flywheel/ never imports adapters / LightRAG / the provider SDK (openai)."""
+    layer = SRC_ROOT / "flywheel"
+    _assert_layer_does_not_import(layer, FLYWHEEL_FORBIDDEN)

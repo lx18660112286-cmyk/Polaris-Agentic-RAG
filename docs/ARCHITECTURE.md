@@ -203,6 +203,7 @@ rag_search(query="...")
 Evaluation     — 检索/回答/引用评估（Stage 5，已实现）
 Observability  — 结构化 trace / 失败分类 / 延迟与 token（Stage 5，已实现）
 Tracing        — Agent -> Tool -> Router -> Adapter 整链 trace_id 关联（Stage 5，已实现）
+Data Flywheel  — 反馈→审查→提案→回归→人工决策 的旁路学习路径（Stage 5.2，已实现）
 ```
 
 ### Observability / Evaluation（Stage 5 已实现）
@@ -251,6 +252,29 @@ Dataset Query
   （spec §12-§14/§18）。`FailureCategory` 另含 `EVALUATION_AGGREGATION_ERROR`（修复后真实运行应为 0）。
 - prompt 改写策略：保留 retrieval intent / 命名实体 / 错误码 / 数值约束 / 操作动作 / 问题范围，
   允许合理改写、禁止语义丢失（spec §11）。详见 `docs/STAGE5_1_EVALUATION_STABILIZATION.md`。
+
+### Data Flywheel（Stage 5.2 新增，旁路学习路径）
+
+Runtime Path（正常问答）与 Learning Path（飞轮）**彻底解耦**——飞轮故障不影响问答，且
+**绝对禁止自动修改系统**（不改 Prompt / Router / Knowledge Base）：
+
+```text
+FeedbackEvent -> ReviewCandidate -> Human Review -> ImprovementProposal
+   (绑定 trace_id)      (规则 A-E)     (mandatory gate)
+        -> EvalCandidate -> Regression Result -> Human Decision
+          (人工显式提升)     (hard_tolerance=0.01)
+```
+
+- `flywheel/` 是纯数据状态机（`DataFlywheelService`），只 capture / queue / review / propose /
+  promote / run-regression；知识更新必须由人来落地（spec §35/§75）。
+- 模型层面复用既有契约：`AgentResult` / `Trace` / `EvalCase` / `MetricSummary`（spec §44/§45）。
+- `KNOWLEDGE_GAP` 是一等问题类型；层式失败归因（`FailureLayer`）把 rewrite drift 归
+  `QUERY_REWRITE` 而非 `ROUTER`；候选分类走确定性规则（spec §47），无 LLM 裁判。
+- 落盘 gitignored：`.local/feedback/`、`.local/review/`、`.local/flywheel/`；
+  `FeedbackSanitizer` 做基础 secret redaction，禁止保存 CoT（spec §42）。
+- CLI：`submit_feedback.py` / `review_feedback.py` / `flywheel_report.py` /
+  `promote_eval_case.py`；`run_agent.py --feedback` 交互打分。
+  详见 `docs/STAGE5_2_DATA_FLYWHEEL.md` 与 `ADR 0006`。
 
 ## 本项目负责 vs LightRAG 负责
 

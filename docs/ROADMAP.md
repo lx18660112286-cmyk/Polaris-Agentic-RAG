@@ -246,6 +246,42 @@ Dataset Query
   critical-term 保留 96.7%、0 系统失败、p50/p95 3.45s/5.40s
 - 质量门禁：188 离线 + 6 集成全绿，ruff / mypy 通过；LightRAG submodule 02dcd8d 不变
 
+## Stage 5.2 — Data Flywheel
+
+**状态**: ✅ 已交付（2026-09-16），详见 `docs/STAGE5_2_DATA_FLYWHEEL.md` 与 `docs/adr/0006-data-flywheel.md`。
+
+**Goal**: 把真实运行时 query / 反馈 / 失败转成**人工审核、可审计、可复现、回归门禁**的改进闭环，
+作为**旁路能力**（Runtime Path ≠ Learning Path，故障不影响问答）；**绝对禁止自动修改系统**
+（不改 Prompt / Router / Knowledge Base）。
+
+**Deliverables**:
+- `flywheel/` 包：`models.py`（FeedbackType / ReviewCandidate / FailureLayer / ImprovementProposal /
+  EvalCandidate / RegressionCheckResult / FlywheelMetrics）、`repository.py`、`sanitizer.py`、
+  `review_queue.py`、`candidate_generator.py`（确定性规则 A-E）、`proposals.py`、
+  `eval_promotion.py`、`regression.py`（hard_tolerance=0.01）、`metrics.py`、`service.py`（`DataFlywheelService`）
+- 正确模式：`feedback → capture → classify → review → proposal → regression → human approval → apply separately`
+- 复用 Trace / AgentResult / EvalCase 契约（spec §44/§45）；`FeedbackSanitizer` 基础 secret redaction，禁 CoT
+- 落盘 gitignored：`.local/feedback/`、`.local/review/`、`.local/flywheel/`
+- CLI：`submit_feedback.py` / `review_feedback.py` / `flywheel_report.py` / `promote_eval_case.py` +
+  `_flywheel_cli.py`；`run_agent.py --feedback`
+- 架构 guard 扩展（`flywheel/` 禁 import lightrag/adapters/provider SDK）
+- 单测 + 集成 `tests/integration/test_data_flywheel_e2e.py`
+
+```text
+FeedbackEvent -> ReviewCandidate -> Human Review -> ImprovementProposal
+   (绑定 trace_id)      (规则 A-E)     (mandatory gate)
+        -> EvalCandidate -> Regression Result -> Human Decision
+          (人工显式提升)     (hard_tolerance=0.01)
+```
+
+**Acceptance Criteria**（已通过离线部分，见 `docs/STAGE5_2_DATA_FLYWHEEL.md` §13）:
+- 旁路：运行时未改；飞轮故障不影响问答；不自动改 Prompt/Router/KB
+- `KNOWLEDGE_GAP` 一等类别；`FailureLayer` 把 rewrite drift 归 `QUERY_REWRITE` 而非 `ROUTER`
+- 251 离线 + ruff + mypy 全绿；完整飞轮集成 E2E 循环通过
+- 集成 4/7：3 例因 4 份文档小知识库检索覆盖波动偶发失败（已如实记录，不改 backend/断言）；
+  LLM 运行时指向 `code2.rayinai.com/v1` + `deepseek-v4.1-flash`
+- LightRAG submodule 02dcd8d 不变
+
 ## Project Status — Feature Complete
 
 当前 **Scope Freeze**。项目已完成核心产品交付，不再新增产品能力。
@@ -258,6 +294,7 @@ Stage 3  ✅  Retrieval Strategy + Query Router
 Stage 4  ✅  Single Agent Orchestrator
 Stage 5  ✅  Evaluation + Observability
 Stage 5.1 ✅  Evaluation Stabilization
+Stage 5.2 ✅  Data Flywheel（旁路学习路径，人工门禁）
 
 Project Status:  FEATURE COMPLETE  →  FEATURE FREEZE
 ```
@@ -277,7 +314,7 @@ Project Status:  FEATURE COMPLETE  →  FEATURE FREEZE
 - [x] README 最终版（重写为项目入口）
 - [x] `docs/PROJECT_SUMMARY.md`（面试导向技术总结）
 - [x] `docs/INTERVIEW_GUIDE.md`（作者面试准备）
-- [x] Roadmap 止于 Stage 5.1
+- [x] Roadmap 止于 Stage 5.2
 - [x] 架构文档一致（ARCHITECTURE / README / ADR）
 - [x] Demo Flow 已文档化（4 组 query + --debug）
 - [x] 可复现性已验证（clone → venv → editable install → .env → Ollama bge-m3 → tests → agent → eval）

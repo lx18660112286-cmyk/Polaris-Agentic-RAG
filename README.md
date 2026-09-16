@@ -17,7 +17,7 @@ Evidence Contract**, and performs **grounded answer synthesis or abstention**.
 项目核心能力是：基于 LightRAG Kernel 构建一个具有**动态检索决策、检索规划、Evidence Contract、
 grounded answer synthesis、abstention、layered evaluation 和 observability** 的 Agentic RAG 系统。
 
-> 项目状态：**FEATURE COMPLETE**（Stage 0–5.1 全部交付，最终进入 FEATURE FREEZE）。各阶段见
+> 项目状态：**FEATURE COMPLETE**（Stage 0–5.2 全部交付，最终进入 FEATURE FREEZE）。各阶段见
 > [docs/ROADMAP.md](docs/ROADMAP.md)。
 
 ---
@@ -195,6 +195,27 @@ Retrieval Invocation 结果、改写前后查询、Retrieval Plan、引用、延
 自动脱敏（secret / chain-of-thought）。Query Provenance：`original_user_query` 不可变 +
 `tool_query` 记录 + 事件用 `tool_call_id` 关联。
 
+## Data Flywheel
+
+真实运行时 query / 反馈 / 失败转入**人工审核、可审计、可复现、回归门禁**的改进闭环，
+作为**旁路能力**（Runtime ≠ Learning，故障不影响问答），且**绝对禁止自动修改系统**：
+
+```text
+FeedbackEvent -> ReviewCandidate -> Human Review -> ImprovementProposal
+   (绑定 trace_id)      (规则 A-E)     (mandatory gate)
+        -> EvalCandidate -> Regression Result -> Human Decision
+          (人工显式提升)     (hard_tolerance=0.01)
+```
+
+- `feedback → capture → classify → review → proposal → regression → human approval → apply separately`；
+  不自动改 Prompt / Router / Knowledge Base。
+- `KNOWLEDGE_GAP` 一等类别；`FailureLayer` 把 rewrite drift 归 `QUERY_REWRITE` 而非 `ROUTER`；
+  候选分类确定性规则，无 LLM 裁判；复用 Trace / AgentResult / EvalCase 契约。
+- 落盘 gitignored（`.local/feedback/`、`.local/review/`、`.local/flywheel/`）；
+  `FeedbackSanitizer` 基础 secret redaction，禁止保存 CoT。
+- CLI：`submit_feedback.py` / `review_feedback.py` / `flywheel_report.py` / `promote_eval_case.py`；
+  `run_agent.py --feedback` 交互打分。详见 [docs/STAGE5_2_DATA_FLYWHEEL.md](docs/STAGE5_2_DATA_FLYWHEEL.md)。
+
 ## Key Results
 
 **37 evaluation cases**（9 类，`examples/evaluation/dev_knowledge_eval.jsonl`），真实 baseline：
@@ -274,16 +295,18 @@ python scripts/run_evaluation.py
 ├── docs/
 │   ├── ARCHITECTURE.md / ROADMAP.md
 │   ├── PROJECT_SUMMARY.md / INTERVIEW_GUIDE.md
-│   ├── STAGE*.md / adr/0001..0005-*.md
+│   ├── STAGE*.md / adr/0001..0006-*.md
 ├── examples/
 │   ├── knowledge_base/            # deployment / api_auth / incident_runbook / service_overview
 │   └── evaluation/dev_knowledge_eval.jsonl   # 37 例评估数据集
 ├── scripts/  run_agent.py / run_evaluation.py / stage1_baseline.py
+│             submit_feedback.py / review_feedback.py / flywheel_report.py / promote_eval_case.py
+│             _flywheel_cli.py
 ├── src/polaris_agentic_rag/
 │   ├── config/  protocols/         # knowledge_search.py / agent_model.py（端口）
 │   ├── adapters/  lightrag/（唯一 import LightRAG）/ agent_model/deepseek.py（唯一 import openai）
 │   ├── retrieval/  evidence/  tools/  agent/
-│   ├── evaluation/  observability/
+│   ├── evaluation/  observability/  flywheel/
 │   └── bootstrap.py               # 组合根：build_agent -> BuiltAgent
 ├── tests/  architecture / unit / integration
 └── third_party/LightRAG            # git submodule（pin 02dcd8df...）
@@ -301,6 +324,7 @@ python scripts/run_evaluation.py
 | [0003](docs/adr/0003-retrieval-routing.md)                 | Retrieval Routing（确定性规则）                |
 | [0004](docs/adr/0004-single-agent-tool-calling.md)         | Single Tool Calling Orchestrator        |
 | [0005](docs/adr/0005-evaluation-and-observability.md)      | Evaluation + Observability              |
+| [0006](docs/adr/0006-data-flywheel.md)                     | Data Flywheel（旁路学习路径）                |
 
 ## Known Limitations
 
@@ -317,6 +341,11 @@ python scripts/run_evaluation.py
 5. **Latency 主体在 LightRAG 检索**（p95 ≈ 5.4s）。
 6. 小知识库、有限 37 例评估集、确定性 Router 规则边界、reranker 未评估、评估非大规模统计、
    provider/model 行为可能变化。
+7. **数据集飞轮为旁路 + 人工门禁**：不改运行时间系统。运行时 LLM 指向网关
+   `https://code2.rayinai.com/v1` + `deepseek-v4.1-flash`（`.env` 配置）。离线 251 + ruff + mypy 全绿；
+   集成 4/7，其中 3 例（`test_agent_e2e` / flywheel 引用断言 / `test_lightrag_native_e2e`）因
+   **4 份文档小知识库的检索覆盖波动**偶发失败（实体/关键词抽取每次非确定 → 命中 source 子集不同），
+   完整飞轮 E2E 循环已验证通过；此波动如实记录，不改 backend / 不改测试断言。
 
 ## Project Scope
 
