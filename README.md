@@ -1,4 +1,4 @@
-#  Polaris Agentic RAG
+# Polaris Agentic RAG
 
 **Polaris Agentic RAG is an Agentic RAG application built on top of LightRAG.**
 
@@ -14,7 +14,7 @@ Evidence Contract**, and performs **grounded answer synthesis or abstention**.
 > structured evidence, and performs grounded synthesis or abstention with layered evaluation
 > and observability.
 
-项目核心能力是：基于 LightRAG Kernel 构建一个具有**动态检索决策、检索规划、Evidence Contract、
+项目核心能力是：仿照 LightRAG Kernel 构建一个具有**动态检索决策、检索规划、Evidence Contract、
 grounded answer synthesis、abstention、layered evaluation 和 observability** 的 Agentic RAG 系统。
 
 > 项目状态：**FEATURE COMPLETE**（Stage 0–5.2 全部交付，最终进入 FEATURE FREEZE）。各阶段见
@@ -324,7 +324,7 @@ python scripts/run_evaluation.py
 | [0003](docs/adr/0003-retrieval-routing.md)                 | Retrieval Routing（确定性规则）                |
 | [0004](docs/adr/0004-single-agent-tool-calling.md)         | Single Tool Calling Orchestrator        |
 | [0005](docs/adr/0005-evaluation-and-observability.md)      | Evaluation + Observability              |
-| [0006](docs/adr/0006-data-flywheel.md)                     | Data Flywheel（旁路学习路径）                |
+| [0006](docs/adr/0006-data-flywheel.md)                     | Data Flywheel（旁路学习路径）                   |
 
 ## Known Limitations
 
